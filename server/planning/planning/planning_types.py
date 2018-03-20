@@ -11,6 +11,7 @@
 import logging
 import superdesk
 import superdesk.schema as schema
+from copy import deepcopy
 from superdesk.utils import ListCursor
 
 
@@ -43,7 +44,21 @@ class EventSchema(BaseSchema):
     internal_note = schema.StringField()
     location = schema.StringField()
     name = schema.StringField(required=True)
-    occur_status = schema.ListField()
+    occur_status = schema.DictField()
+    occur_status.schema['schema'] = {
+        "qcode": {
+            "type": "string",
+            "required": True
+        },
+        "name": {
+            "type": "string",
+            "required": False
+        },
+        "label": {
+            "type": "string",
+            "required": False
+        }
+    }
     subject = schema.ListField(required=False, mandatory_in_list={'scheme': {}}, schema={
         'type': 'dict',
         'schema': {
@@ -63,7 +78,8 @@ class EventSchema(BaseSchema):
     calendars = schema.ListField()
     files = schema.ListField()
     links = schema.ListField()
-    dates = schema.DictField()
+    dates = schema.DictField(required=True)
+    ednote = schema.StringField()
 
 
 class PlanningSchema(BaseSchema):
@@ -125,38 +141,43 @@ DEFAULT_EDITOR = [{
         'calendars': {'enabled': True},
         'files': {'enabled': True},
         'links': {'enabled': True},
-        'dates': {'enabled': True},
+        'dates': {
+            'enabled': True,
+            'default_duration_on_change': 1
+        },
+        'ednote': {'enabled': True}
     },
-    'schema': dict(EventSchema)},
-    {
-        'name': 'planning',
-        'editor': {
-            'planning_date': {'enabled': True},
-            'slugline': {'enabled': True},
-            'place': {'enabled': False},
-            'anpa_category': {'enabled': True},
-            'description_text': {'enabled': True},
-            'ednote': {'enabled': True},
-            'internal_note': {'enabled': True},
-            'subject': {'enabled': True},
-            'agendas': {'enabled': True},
-            'flags': {'enabled': True},
-            'urgency': {'enabled': True}
-        },
-        'schema': dict(PlanningSchema)},
-    {
-        'name': 'coverage',
-        'editor': {
-            'slugline': {'enabled': True},
-            'keyword': {'enabled': False},
-            'ednote': {'enabled': True},
-            'g2_content_type': {'enabled': True},
-            'genre': {'enabled': True},
-            'internal_note': {'enabled': True},
-            'scheduled': {'enabled': True},
-            'news_coverage_status': {'enabled': True}
-        },
-        'schema': dict(CoverageSchema)}]
+    'schema': dict(EventSchema)
+}, {
+    'name': 'planning',
+    'editor': {
+        'planning_date': {'enabled': True},
+        'slugline': {'enabled': True},
+        'place': {'enabled': False},
+        'anpa_category': {'enabled': True},
+        'description_text': {'enabled': True},
+        'ednote': {'enabled': True},
+        'internal_note': {'enabled': True},
+        'subject': {'enabled': True},
+        'agendas': {'enabled': True},
+        'flags': {'enabled': True},
+        'urgency': {'enabled': True}
+    },
+    'schema': dict(PlanningSchema)
+}, {
+    'name': 'coverage',
+    'editor': {
+        'slugline': {'enabled': True},
+        'keyword': {'enabled': False},
+        'ednote': {'enabled': True},
+        'g2_content_type': {'enabled': True},
+        'genre': {'enabled': True},
+        'internal_note': {'enabled': True},
+        'scheduled': {'enabled': True},
+        'news_coverage_status': {'enabled': True}
+    },
+    'schema': dict(CoverageSchema)
+}]
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +195,10 @@ planning_types_schema = {
         {'type': 'dict'},
     # schema controls the validation of fields at the front end.
     'schema':
+        {'type': 'dict'},
+
+    # publishSchema controls the validation of fields when publishing.
+    'publishSchema':
         {'type': 'dict'}
 }
 
@@ -186,17 +211,50 @@ class PlanningTypesService(superdesk.Service):
     Entries can be overridden by providing alternates in the planning_types mongo collection.
     """
 
+    def find_one(self, req, **lookup):
+        try:
+            planning_type = super().find_one(req, **lookup)
+
+            # lookup name from either **lookup of planning_item(if lookup has only '_id')
+            lookup_name = lookup.get('name')
+            if not lookup_name and planning_type:
+                lookup_name = planning_type.get('name')
+
+            default_planning_type = next((ptype for ptype in DEFAULT_EDITOR
+                                          if ptype.get('name') == lookup_name), None)
+            if not planning_type:
+                return default_planning_type
+
+            self.merge_planning_type(planning_type, default_planning_type)
+            return planning_type
+        except IndexError:
+            return None
+
     def get(self, req, lookup):
         planning_types = list(super().get(req, lookup))
+        merged_planning_types = []
 
-        # If the name does not exist in the list returned from mongo then we need to insert is from the DEFAULT_EDITOR
-        # list
-        overidden_names = [l.get('name') for l in planning_types]
-        for planning_type in DEFAULT_EDITOR:
-            if not planning_type.get('name') in overidden_names:
-                planning_types.append(planning_type)
+        for default_planning_type in DEFAULT_EDITOR:
+            planning_type = next((p for p in planning_types
+                                  if p.get('name') == default_planning_type.get('name')), None)
 
-        return ListCursor(planning_types)
+            # If nothing is defined in database for this planning_type, use default
+            if planning_type is None:
+                merged_planning_types.append(default_planning_type)
+            else:
+                self.merge_planning_type(planning_type, default_planning_type)
+                merged_planning_types.append(planning_type)
+
+        return ListCursor(merged_planning_types)
+
+    def merge_planning_type(self, planning_type, default_planning_type):
+        # Update schema fields with database schema fields
+        updated_planning_type = deepcopy(default_planning_type)
+        updated_planning_type['schema'].update(planning_type.get('schema', {}))
+        updated_planning_type['editor'].update(planning_type.get('editor', {}))
+
+        planning_type['schema'] = updated_planning_type['schema']
+        planning_type['editor'] = updated_planning_type['editor']
 
 
 class PlanningTypesResource(superdesk.Resource):

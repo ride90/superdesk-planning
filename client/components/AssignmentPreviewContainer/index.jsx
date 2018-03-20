@@ -252,7 +252,6 @@ class AssignmentPreviewContainerComponent extends React.Component {
                         />
                     </ToggleBox>
                 </div>
-
                 {eventItem &&
                     <div className="AssignmentPreview__event side-panel__content-block
                     side-panel__content-block--pad-small">
@@ -325,7 +324,7 @@ const mapDispatchToProps = (dispatch) => ({
     revertAssignment: (assignment) => dispatch(actions.assignments.ui.revert(assignment)),
     editAssignmentPriority: (assignment) => dispatch(actions.assignments.ui.editPriority(assignment)),
     onFulFilAssignment: (assignment) => dispatch(actions.assignments.ui.onAssignmentFormSave(assignment)),
-    removeAssignment: (assignment) => dispatch(actions.assignments.ui.removeAssignment(assignment)),
+    removeAssignment: (assignment) => dispatch(actions.assignments.ui.showRemoveAssignmentModal(assignment)),
     openArchivePreview: (assignment) => dispatch(actions.assignments.ui.openArchivePreview(assignment)),
 });
 

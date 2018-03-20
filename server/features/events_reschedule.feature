@@ -10,7 +10,7 @@ Feature: Events Reschedule
             "_id": "event1",
             "guid": "event1",
             "name": "TestEvent",
-            "definition_long": "Something happening.",
+            "ednote": "Something happening.",
             "dates": {
                 "start": "2029-11-21T12:00:00.000Z",
                 "end": "2029-11-21T14:00:00.000Z",
@@ -80,11 +80,11 @@ Feature: Events Reschedule
                 "end": "2029-11-21T14:00:00+0000",
                 "tz": "Australia/Sydney"
             },
-            "definition_long": "Something happening.\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Changed to the next day!\n"
+            "ednote": "Something happening.\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Changed to the next day!\n"
         }
         """
         When we get "/events_history"
-        Then we get list with 2 items
+        Then we get list with 3 items
         """
         {"_items": [
             {"operation": "reschedule", "event_id": "event1", "update": {
@@ -92,7 +92,8 @@ Feature: Events Reschedule
             }},
             {"operation": "reschedule_from", "event_id": "#DUPLICATE.id#", "update": {
                 "reschedule_from": "event1"
-            }}
+            }},
+            {"operation": "publish", "event_id": "event1"}
         ]}
         """
 
@@ -103,6 +104,24 @@ Feature: Events Reschedule
         Given "desks"
         """
         [{"_id": "desk_123", "name": "Politic Desk"}]
+        """
+        Given "vocabularies"
+        """
+        [{
+          "_id": "newscoveragestatus",
+          "display_name": "News Coverage Status",
+          "type": "manageable",
+          "unique_field": "qcode",
+          "items": [
+              {"is_active": true, "qcode": "ncostat:int", "name": "coverage intended", "label": "Planned"},
+              {"is_active": true, "qcode": "ncostat:notdec", "name": "coverage not decided yet",
+                  "label": "On merit"},
+              {"is_active": true, "qcode": "ncostat:notint", "name": "coverage not intended",
+                  "label": "Not planned"},
+              {"is_active": true, "qcode": "ncostat:onreq", "name": "coverage upon request",
+                  "label": "On request"}
+          ]
+        }]
         """
         Given "assignments"
         """
@@ -159,7 +178,12 @@ Feature: Events Reschedule
                     "desk": "#desks._id#",
                     "user": "#CONTEXT_USER_ID#",
                     "assignment_id": "aaaaaaaaaaaaaaaaaaaaaaaa"
-                }
+                },
+                "news_coverage_status" : {
+                "qcode" : "ncostat:int",
+                "label" : "Planned",
+                "name" : "coverage intended"
+            }
             }]
         }]
         """
@@ -216,6 +240,25 @@ Feature: Events Reschedule
             }]
         }
         """
+        When we get "/assignments/aaaaaaaaaaaaaaaaaaaaaaaa"
+        Then we get existing resource
+        """
+        {
+            "assigned_to" : {
+                "state" : "cancelled",
+                "user" : "#CONTEXT_USER_ID#",
+                "desk" : "desk_123"
+            },
+            "planning" : {
+                "news_coverage_status" : {
+                    "label" : "Not planned",
+                    "qcode" : "ncostat:notint",
+                    "name" : "coverage not intended"
+                },
+                "internal_note" : "Please write words.\n\n------------------------------------------------------------\nCoverage cancelled\n"
+            }
+        }
+        """
         And we get notifications
         """
         [{
@@ -223,6 +266,15 @@ Feature: Events Reschedule
             "extra": {
                 "activity": {
                 "message" : "The event associated with {{coverage_type}} coverage \"{{slugline}}\" has been marked as rescheduled",
+                "user_name" : "test_user"
+                }
+            }
+        },
+        {
+            "event": "activity",
+            "extra": {
+                "activity": {
+                "message" : "Assignment {{slugline}} for desk {{desk}} has been cancelled by {{user}}",
                 "user_name" : "test_user"
                 }
             }
@@ -301,7 +353,7 @@ Feature: Events Reschedule
                     "end": "2099-11-21T14:00:00+0000"
                 },
                 "recurrence_id": "#EVENT1.recurrence_id#",
-                "definition_long": "------------------------------------------------------------\nEvent Rescheduled\nReason: Changed to the next day!\n"
+                "ednote": "------------------------------------------------------------\nEvent Rescheduled\nReason: Changed to the next day!\n"
             },
             {
                 "_id": "#EVENT2._id#",
@@ -933,22 +985,22 @@ Feature: Events Reschedule
             {
                 "_id": "#EVENT1._id#",
                 "state": "postponed",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n"
             },
             {
                 "_id": "#EVENT2._id#",
                 "state": "postponed",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n"
             },
             {
                 "_id": "#EVENT3._id#",
                 "state": "postponed",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n"
             },
             {
                 "_id": "#EVENT4._id#",
                 "state": "postponed",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n"
             }
         ]}
         """
@@ -1024,7 +1076,7 @@ Feature: Events Reschedule
                     }
                 },
                 "state": "draft",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
             },
             {
                 "name": "Friday Club",
@@ -1041,7 +1093,7 @@ Feature: Events Reschedule
                     }
                 },
                 "state": "draft",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
             },
             {
                 "name": "Friday Club",
@@ -1058,7 +1110,7 @@ Feature: Events Reschedule
                     }
                 },
                 "state": "draft",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
             },
             {
                 "name": "Friday Club",
@@ -1075,7 +1127,7 @@ Feature: Events Reschedule
                     }
                 },
                 "state": "scheduled",
-                "definition_long": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
+                "ednote": "------------------------------------------------------------\nEvent Postponed\n\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Event back on at original date and time\n"
             }
         ]}
         """
@@ -1216,3 +1268,110 @@ Feature: Events Reschedule
         """
         {"_issues": {"validator exception": "403: The lock must be for the `reschedule` action"}, "_status": "ERR"}
         """
+
+    @auth
+    @notification
+    Scenario: Published event gets updated after reschedule
+        Given we have sessions "/sessions"
+        Given "events"
+        """
+        [{
+            "_id": "event1",
+            "guid": "event1",
+            "name": "TestEvent",
+            "ednote": "Something happening.",
+            "dates": {
+                "start": "2029-11-21T12:00:00.000Z",
+                "end": "2029-11-21T14:00:00.000Z",
+                "tz": "Australia/Sydney"
+            },
+            "state": "scheduled",
+            "pubstatus": "usable",
+            "lock_user": "#CONTEXT_USER_ID#",
+            "lock_session": "#SESSION_ID#",
+            "lock_action": "reschedule",
+            "lock_time": "#DATE#"
+        }]
+        """
+        When we post to "/products" with success
+        """
+        {
+            "name":"prod-1","codes":"abc,xyz", "product_type": "both"
+        }
+        """
+        And we post to "/subscribers" with success
+        """
+        {
+            "name":"News1","media_type":"media", "subscriber_type": "digital", "sequence_num_settings":{"min" : 1, "max" : 10}, "email": "test@test.com",
+            "products": ["#products._id#"],
+            "codes": "xyz, abc",
+            "destinations": [{"name":"events", "format": "ntb_event", "delivery_type": "File", "config":{"file_path": "/tmp"}}]
+        }
+        """
+        When we perform reschedule on events "event1"
+        """
+        {
+            "reason": "Changed to the next day!",
+            "dates": {
+                "start": "2029-11-22T12:00:00.000Z",
+                "end": "2029-11-22T14:00:00.000Z",
+                "tz": "Australia/Sydney"
+            }
+        }
+        """
+        Then we get OK response
+        Then we store "DUPLICATE" from last rescheduled item
+        And we get notifications
+        """
+        [{
+            "event": "events:reschedule",
+            "extra": {
+                "item": "event1",
+                "user": "#CONTEXT_USER_ID#"
+            }
+        }, {
+            "event": "events:published",
+            "extra": {
+                "item": "event1"
+            }
+        }]
+        """
+        When we get "/events/#DUPLICATE.id#"
+        Then we get OK response
+        Then we get existing resource
+        """
+        {
+            "state": "draft",
+            "reschedule_from": "event1",
+            "lock_user": "__no_value__",
+            "lock_session": "__no_value__",
+            "lock_action": "__no_value__",
+            "lock_time": "__no_value__",
+            "dates": {
+                "start": "2029-11-22T12:00:00+0000",
+                "end": "2029-11-22T14:00:00+0000",
+                "tz": "Australia/Sydney"
+            }
+        }
+        """
+        When we get "/events/event1"
+        Then we get existing resource
+        """
+        {
+            "state": "rescheduled",
+            "pubstatus": "usable",
+            "reschedule_to": "#DUPLICATE.id#",
+            "lock_user": null,
+            "lock_session": null,
+            "lock_action": null,
+            "lock_time": null,
+            "dates": {
+                "start": "2029-11-21T12:00:00+0000",
+                "end": "2029-11-21T14:00:00+0000",
+                "tz": "Australia/Sydney"
+            },
+            "ednote": "Something happening.\n\n------------------------------------------------------------\nEvent Rescheduled\nReason: Changed to the next day!\n"
+        }
+        """
+        When we get "publish_queue"
+        Then we get list with 1 items

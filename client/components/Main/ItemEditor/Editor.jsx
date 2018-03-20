@@ -1,11 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {connect} from 'react-redux';
-import {get, set, isEqual, cloneDeep} from 'lodash';
+import {get, isEqual, cloneDeep} from 'lodash';
 
-import {gettext, lockUtils} from '../../../utils';
+import {gettext, lockUtils, eventUtils, planningUtils, updateFormValues} from '../../../utils';
 
-import {ITEM_TYPE, EVENTS, PLANNING, WORKSPACE} from '../../../constants';
+import {ITEM_TYPE, EVENTS, PLANNING, WORKSPACE, PUBLISHED_STATE, WORKFLOW_STATE} from '../../../constants';
 import * as selectors from '../../../selectors';
 import * as actions from '../../../actions';
 
@@ -130,7 +130,7 @@ export class EditorComponent extends React.Component {
         const errors = cloneDeep(this.state.errors);
 
         if (field) {
-            set(diff, field, value);
+            updateFormValues(diff, field, value);
         }
 
         this.props.onValidate(
@@ -147,7 +147,7 @@ export class EditorComponent extends React.Component {
         });
     }
 
-    _save({save, publish, unpublish}) {
+    _save({publish, unpublish}) {
         if (!isEqual(this.state.errors, {})) {
             this.setState({
                 submitFailed: true,
@@ -159,29 +159,72 @@ export class EditorComponent extends React.Component {
                 submitFailed: false,
                 showSubmitFailed: false,
             });
-            return this.props.onSave(this.state.diff, {save, publish, unpublish})
-                .finally(() => this.setState({submitting: false}));
+
+            // If we are publishing or unpublishing, we are setting 'pubstatus' to 'usable' from client side
+            let itemToUpdate = cloneDeep(this.state.diff);
+
+            if (publish) {
+                itemToUpdate.state = WORKFLOW_STATE.SCHEDULED;
+                itemToUpdate.pubstatus = PUBLISHED_STATE.USABLE;
+            } else if (unpublish) {
+                itemToUpdate.state = WORKFLOW_STATE.KILLED;
+                itemToUpdate.pubstatus = PUBLISHED_STATE.CANCELLED;
+            }
+
+            return this.props.onSave(itemToUpdate)
+                .then(
+                    () => this.setState({
+                        submitting: false,
+                        dirty: false,
+                    }),
+                    () => this.setState({submitting: false}));
         }
     }
 
     onSave() {
-        this._save({save: true, publish: false, unpublish: false});
+        return this._save({publish: false, unpublish: false});
     }
 
     onPublish() {
-        this._save({save: false, publish: true, unpublish: false});
+        this.setState({
+            submitting: true,
+            submitFailed: false,
+            showSubmitFailed: false,
+        });
+
+        return this.props.onPublish(this.state.diff)
+            .then(
+                () => this.setState({
+                    submitting: false,
+                    dirty: false,
+                }),
+                () => this.setState({submitting: false})
+            );
     }
 
     onSaveAndPublish() {
-        this._save({save: true, publish: true, unpublish: false});
+        return this._save({publish: true, unpublish: false});
     }
 
     onUnpublish() {
-        this._save({save: false, publish: false, unpublish: true});
+        this.setState({
+            submitting: true,
+            submitFailed: false,
+            showSubmitFailed: false,
+        });
+
+        return this.props.onUnpublish(this.state.diff)
+            .then(
+                () => this.setState({
+                    submitting: false,
+                    dirty: false,
+                }),
+                () => this.setState({submitting: false})
+            );
     }
 
     onSaveUnpublish() {
-        this._save({save: true, publish: false, unpublish: true});
+        return this._save({publish: false, unpublish: true});
     }
 
     tearDownEditorState() {
@@ -228,6 +271,25 @@ export class EditorComponent extends React.Component {
         );
         const isLocked = lockUtils.getLock(this.props.item, this.props.lockedItems);
 
+        let canEdit = false;
+
+        if (this.props.itemType === ITEM_TYPE.EVENT) {
+            canEdit = eventUtils.canEditEvent(
+                this.props.item,
+                this.props.session,
+                this.props.privileges,
+                this.props.lockedItems
+            );
+        } else if (this.props.itemType === ITEM_TYPE.PLANNING) {
+            canEdit = planningUtils.canEditPlanning(
+                this.props.item,
+                null,
+                this.props.session,
+                this.props.privileges,
+                this.props.lockedItems
+            );
+        }
+
         return (
             <SidePanel shadowRight={true}>
                 {(!this.props.isLoadingItem && this.props.itemType) && (
@@ -249,6 +311,7 @@ export class EditorComponent extends React.Component {
                     minimize={this.props.minimize}
                     submitting={this.state.submitting}
                     dirty={this.state.dirty}
+                    errors={this.state.errors}
                     session={this.props.session}
                     privileges={this.props.privileges}
                     lockedItems={this.props.lockedItems}
@@ -259,6 +322,7 @@ export class EditorComponent extends React.Component {
                     itemActions={this.props.itemActions}
                     currentWorkspace={this.props.currentWorkspace}
                     ref={(ref) => this.editorHeaderComponent = ref}
+                    itemType={this.props.itemType}
                 />
                 <Content flex={true}>
                     {this.state.showSubmitFailed && (
@@ -293,7 +357,7 @@ export class EditorComponent extends React.Component {
                                 itemType={this.props.itemType}
                                 diff={this.state.diff}
                                 onChangeHandler={this.onChangeHandler}
-                                readOnly={existingItem && (!isLocked || isLockRestricted)}
+                                readOnly={existingItem && (!canEdit || !isLocked || isLockRestricted)}
                                 addNewsItemToPlanning={this.props.addNewsItemToPlanning}
                                 submitFailed={this.state.submitFailed}
                                 errors={this.state.errors}
@@ -314,6 +378,7 @@ EditorComponent.propTypes = {
     cancel: PropTypes.func.isRequired,
     minimize: PropTypes.func.isRequired,
     onSave: PropTypes.func.isRequired,
+    onPublish: PropTypes.func.isRequired,
     onUnpublish: PropTypes.func.isRequired,
     onSaveUnpublish: PropTypes.func.isRequired,
     session: PropTypes.object,
@@ -348,9 +413,9 @@ const mapDispatchToProps = (dispatch) => ({
     onLock: (item) => dispatch(actions.locks.lock(item)),
     minimize: () => dispatch(actions.main.closeEditor()),
     cancel: (item) => dispatch(actions.main.unlockAndCancel(item)),
-    onSave: (item, {save = true, publish = false, unpublish = false} = {}) =>
-        dispatch(actions.main.save(item, {save, publish, unpublish})),
+    onSave: (item) => dispatch(actions.main.save(item)),
     onUnpublish: (item) => dispatch(actions.main.unpublish(item)),
+    onPublish: (item) => dispatch(actions.main.publish(item)),
     onSaveUnpublish: (item) => dispatch(actions.main.onSaveUnpublish(item)),
     openCancelModal: (props) => dispatch(actions.main.openConfirmationModal(props)),
     onValidate: (type, item, profile, errors) => dispatch(validateItem(type, item, profile, errors)),

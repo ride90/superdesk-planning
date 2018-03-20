@@ -22,7 +22,7 @@ from apps.archive.common import set_original_creator, get_auth
 from superdesk.users.services import current_user_has_privilege
 from .events_base_service import EventsBaseService
 from planning.common import UPDATE_SINGLE, UPDATE_FUTURE, get_max_recurrent_events, \
-    WORKFLOW_STATE, ITEM_STATE, remove_lock_information, format_address
+    WORKFLOW_STATE, ITEM_STATE, remove_lock_information, format_address, update_published_item, publish_required
 from dateutil.rrule import rrule, YEARLY, MONTHLY, WEEKLY, DAILY, MO, TU, WE, TH, FR, SA, SU
 from eve.defaults import resolve_default_values
 from eve.methods.common import resolve_document_etag
@@ -244,12 +244,20 @@ class EventsService(superdesk.Service):
                 etag=updates['_etag']
             )
 
+        if not updates.get('duplicate_to'):
+            update_published_item(updates, original)
+
     def _update_single_event(self, updates, original):
         """Updates the metadata of a single event.
 
         If recurring_rule is provided, we convert this single event into
         a series of recurring events, otherwise we simply update this event.
         """
+
+        if publish_required(updates, original):
+            merged = deepcopy(original)
+            merged.update(updates)
+            get_resource_service('events_publish').validate_item(merged)
 
         # Determine if we're to convert this single event to a recurring series of events
         if updates.get('dates', {}).get('recurring_rule', None) is not None:
@@ -286,6 +294,15 @@ class EventsService(superdesk.Service):
         else:
             historic, past, future = self.get_recurring_timeline(original)
             events = historic + past + future
+
+        events_publish_service = get_resource_service('events_publish')
+
+        # First we want to validate that all events can be published
+        for e in events:
+            if publish_required(updates, e):
+                merged = deepcopy(e)
+                merged.update(updates)
+                events_publish_service.validate_item(merged)
 
         for e in events:
             new_updates = deepcopy(updates)
@@ -324,7 +341,9 @@ class EventsService(superdesk.Service):
             updates['dates'] = updated_event['dates']
             set_planning_schedule(updates)
             event_reschedule_service.update_single_event(updates, original)
-            app.on_updated_events_reschedule(updates, original)
+            if updates.get('state') == WORKFLOW_STATE.RESCHEDULED:
+                history_service = get_resource_service('events_history')
+                history_service.on_reschedule(updates, original)
         else:
             # Original event falls as a part of the series
             # Remove the first element in the list (the current event being updated)
@@ -341,7 +360,7 @@ class EventsService(superdesk.Service):
 
     def get_recurring_timeline(self, selected):
         events_base_service = EventsBaseService('events', backend=superdesk.get_backend())
-        return events_base_service.get_recurring_timeline(selected, True)
+        return events_base_service.get_recurring_timeline(selected, postponed=True)
 
 
 class EventsResource(superdesk.Resource):

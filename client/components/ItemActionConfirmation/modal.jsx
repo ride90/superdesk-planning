@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import {ModalWithForm} from '../index';
 import {
     SpikeEventForm,
+    UnspikeEventForm,
     UpdateRecurringEventsForm,
     CancelEventForm,
     PostponeEventForm,
@@ -13,6 +14,7 @@ import {
     UpdateAssignmentForm,
     EditPriorityForm,
     UpdateEventRepetitionsForm,
+    PublishEventsForm,
 } from './index';
 import {get} from 'lodash';
 import {EVENTS, PLANNING, ASSIGNMENTS} from '../../constants';
@@ -60,6 +62,11 @@ export class ItemActionConfirmationModal extends React.Component {
                 saveText: gettext('Spike'),
                 form: SpikeEventForm,
             },
+            [EVENTS.ITEM_ACTIONS.UNSPIKE.label]: {
+                title: gettext('Unspike an event'),
+                saveText: gettext('Unspike'),
+                form: UnspikeEventForm,
+            },
             [EVENTS.ITEM_ACTIONS.CANCEL_EVENT.label]: {
                 title: gettext('Cancel an event'),
                 saveText: gettext('OK'),
@@ -87,6 +94,11 @@ export class ItemActionConfirmationModal extends React.Component {
                 title: gettext('Update Event Repetitions'),
                 saveText: gettext('Update Repetitions'),
                 form: UpdateEventRepetitionsForm,
+            },
+            [EVENTS.ITEM_ACTIONS.PUBLISH_EVENT.label]: {
+                title: gettext('Publish Event'),
+                saveText: get(propToForm, '_publish', true) ? gettext('Publish') : gettext('Unpublish'),
+                form: PublishEventsForm,
             },
             [PLANNING.ITEM_ACTIONS.CANCEL_PLANNING.label]: {
                 title: get(PLANNING, 'ITEM_ACTIONS.CANCEL_PLANNING.label'),

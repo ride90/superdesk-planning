@@ -1,5 +1,5 @@
 import {MAIN, ITEM_TYPE} from '../constants';
-import {activeFilter, previewId, lastRequestParams} from '../selectors/main';
+import {activeFilter, lastRequestParams} from '../selectors/main';
 import planningUi from './planning/ui';
 import planningApi from './planning/api';
 import eventsUi from './events/ui';
@@ -8,11 +8,13 @@ import {locks, showModal} from './';
 import {selectAgenda, fetchSelectedAgendaPlannings} from './agenda';
 import {
     getErrorMessage,
+    notifyError,
     getItemType,
     gettext,
     eventUtils,
     shouldLockItemForEdit,
     shouldUnLockItem,
+    getItemTypeString,
 } from '../utils';
 import {MODALS, WORKSPACE} from '../constants';
 import eventsPlanningUi from './eventsPlanning/ui';
@@ -25,45 +27,42 @@ const lockAndEdit = (item) => (
     (dispatch, getState, {notify}) => {
         const currentItemId = selectors.forms.currentItemId(getState());
         const currentSession = selectors.general.session(getState());
+        const lockedItems = selectors.locks.getLockedItems(getState());
+        const shouldLockItem = shouldLockItemForEdit(item, lockedItems);
 
-        if (currentItemId === item._id && lockUtils.isItemLockedInThisSession(item, currentSession)) {
+        // If this item is already opened and we either have a lock or the item should not get locked
+        // Then simply return the item
+        if (currentItemId === item._id &&
+            (!shouldLockItem || lockUtils.isItemLockedInThisSession(item, currentSession))
+        ) {
             return Promise.resolve(item);
         }
 
         dispatch({type: MAIN.ACTIONS.EDIT_LOADING_START});
         dispatch(self.openEditor(item));
+
         // If the item being edited is currently opened in the Preview panel
         // then close the preview panel
-        if (previewId(getState()) === item._id) {
+        if (selectors.main.previewId(getState()) === item._id) {
             dispatch(self.closePreview());
         }
 
-        const state = getState();
-        const lockedItems = selectors.locks.getLockedItems(state);
-        let promise;
-
         // If it is an existing item and the item is not locked
         // then lock the item, otherwise return the existing item
-        if (shouldLockItemForEdit(item, lockedItems)) {
-            promise = dispatch(locks.lock(item));
-        } else {
-            promise = Promise.resolve(item);
-        }
+        const promise = shouldLockItem ?
+            dispatch(locks.lock(item)) :
+            Promise.resolve(item);
 
         return promise.then((lockedItem) => {
-            if (!item._id) {
-                dispatch({type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE});
-            }
+            dispatch({type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE});
 
             return Promise.resolve(lockedItem);
         }, (error) => {
             notify.error(
-                getErrorMessage(error, 'Failed to lock the item')
+                getErrorMessage(error, gettext('Failed to lock the item'))
             );
 
-            if (!item._id) {
-                dispatch({type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE});
-            }
+            dispatch({type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE});
 
             return Promise.reject(error);
         });
@@ -99,17 +98,23 @@ const unlockAndCloseEditor = (item) => (
     }
 );
 
-const save = (item, {save = true, publish = false, unpublish = false} = {}) => (
+const save = (item, withConfirmation = true) => (
     (dispatch, getState, {notify}) => {
         const itemType = getItemType(item);
         let promise;
+        let confirmation = withConfirmation;
 
         switch (itemType) {
         case ITEM_TYPE.EVENT:
-            promise = dispatch(eventsUi.saveWithConfirmation(item, {save, publish, unpublish}));
+            confirmation = withConfirmation && get(item, 'recurrence_id');
+            promise = dispatch(confirmation ?
+                eventsUi.saveWithConfirmation(item) :
+                eventsApi.save(item)
+            );
             break;
         case ITEM_TYPE.PLANNING:
-            promise = dispatch(planningUi.saveAndPublishPlanning(item, {save, publish, unpublish}));
+            confirmation = false;
+            promise = dispatch(planningUi.save(item));
             break;
         default:
             promise = Promise.reject(gettext('Failed to save, could not find the item type!'));
@@ -121,13 +126,24 @@ const save = (item, {save = true, publish = false, unpublish = false} = {}) => (
                 const savedItem = Array.isArray(savedItems) ? savedItems[0] : savedItems;
 
                 if (!get(item, '_id') && selectors.getCurrentWorkspace(getState()) !== WORKSPACE.AUTHORING) {
+                    notify.success(
+                        gettext('{{ itemType }} created', {itemType: getItemTypeString(item)})
+                    );
                     return dispatch(self.lockAndEdit(savedItem));
+                }
+
+                if (!confirmation) {
+                    notify.success(
+                        gettext('The {{ itemType }} has been saved', {itemType: getItemTypeString(item)})
+                    );
                 }
 
                 return Promise.resolve(savedItem);
             }, (error) => {
-                notify.error(
-                    getErrorMessage(error, gettext('Failed to save the item'))
+                notifyError(
+                    notify,
+                    error,
+                    gettext('Failed to save the {{ itemType }}', {itemType: getItemTypeString(item)})
                 );
 
                 return Promise.reject(error);
@@ -135,21 +151,93 @@ const save = (item, {save = true, publish = false, unpublish = false} = {}) => (
     }
 );
 
-const unpublish = (item) => (
+const unpublish = (item, withConfirmation = true) => (
     (dispatch, getState, {notify}) => {
         const itemType = getItemType(item);
+        let promise;
+        let confirmation = withConfirmation;
 
         switch (itemType) {
         case ITEM_TYPE.EVENT:
-            return dispatch(eventsUi.unpublish(item));
+            confirmation = withConfirmation && get(item, 'recurrence_id');
+            promise = dispatch(confirmation ?
+                eventsUi.publishWithConfirmation(item, false) :
+                eventsApi.unpublish(item)
+            );
+            break;
         case ITEM_TYPE.PLANNING:
-            return dispatch(planningUi.unpublish(item));
+            confirmation = false;
+            promise = dispatch(planningApi.unpublish(item));
+            break;
+        default:
+            promise = Promise.reject(gettext('Failed to unpublish, could not find the item type!'));
         }
 
-        const errMessage = gettext('Failed to unpublish, could not find the item type!');
+        return promise
+            .then(
+                (rtn) => {
+                    if (!confirmation) {
+                        notify.success(
+                            gettext('The {{ itemType }} has been unpublished', {itemType: getItemTypeString(item)})
+                        );
+                    }
+                    return Promise.resolve(rtn);
+                },
+                (error) => {
+                    notifyError(
+                        notify,
+                        error,
+                        gettext('Failed to unpublish the {{ itemType }}', {itemType: getItemTypeString(item)})
+                    );
+                    return Promise.reject(error);
+                }
+            );
+    }
+);
 
-        notify.error(errMessage);
-        return Promise.reject(errMessage);
+const publish = (item, withConfirmation = true) => (
+    (dispatch, getState, {notify}) => {
+        const itemType = getItemType(item);
+        let promise;
+        let confirmation = withConfirmation;
+
+        switch (itemType) {
+        case ITEM_TYPE.EVENT:
+            confirmation = withConfirmation && get(item, 'recurrence_id');
+            promise = dispatch(confirmation ?
+                eventsUi.publishWithConfirmation(item, true) :
+                eventsApi.publish(item)
+            );
+            break;
+        case ITEM_TYPE.PLANNING:
+            confirmation = false;
+            promise = dispatch(planningApi.publish(item));
+            break;
+        default:
+            promise = Promise.reject(gettext('Failed to publish, could not find the item type!'));
+            break;
+        }
+
+        return promise
+            .then(
+                (rtn) => {
+                    if (!confirmation) {
+                        notify.success(
+                            gettext('The {{ itemType }} has been published', {itemType: getItemTypeString(item)})
+                        );
+                    }
+
+                    return Promise.resolve(rtn);
+                },
+                (error) => {
+                    notifyError(
+                        notify,
+                        error,
+                        gettext('Failed to publish the {{ itemType }}', {itemType: getItemTypeString(item)})
+                    );
+                    return Promise.reject(error);
+                }
+            );
     }
 );
 
@@ -181,12 +269,12 @@ const openConfirmationModal = ({title, body, okText, showIgnore, action, ignore}
     )
 );
 
-const closePreviewAndEditorForItems = (items, actionMessage = '') => (
+const closePreviewAndEditorForItems = (items, actionMessage = '', field = '_id') => (
     (dispatch, getState, {notify}) => {
         const previewId = selectors.main.previewId(getState());
         const editId = selectors.forms.currentItemId(getState());
 
-        if (previewId && items.find((i) => i._id === previewId)) {
+        if (previewId && items.find((i) => get(i, field) === previewId)) {
             dispatch(self.closePreview());
 
             if (actionMessage !== '') {
@@ -194,7 +282,7 @@ const closePreviewAndEditorForItems = (items, actionMessage = '') => (
             }
         }
 
-        if (editId && items.find((i) => i._id === editId)) {
+        if (editId && items.find((i) => get(i, field) === editId)) {
             dispatch(self.closeEditor());
 
             if (actionMessage !== '') {
@@ -212,7 +300,7 @@ const closePreviewAndEditorForItems = (items, actionMessage = '') => (
   * @return {Object} - returns Promise
  */
 const filter = (ftype = null) => (
-    (dispatch, getState, {$timeout, $location, pageTitle}) => {
+    (dispatch, getState, {$timeout, $location}) => {
         let filterType = ftype;
 
         if (filterType === null) {
@@ -584,6 +672,7 @@ const self = {
     unlockAndCancel,
     save,
     unpublish,
+    publish,
     openCancelModal,
     openEditor,
     closeEditor,

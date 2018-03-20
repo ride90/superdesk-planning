@@ -15,7 +15,7 @@ from apps.archive.common import get_user, get_auth
 from eve.utils import config
 from copy import deepcopy
 from .planning import PlanningResource, planning_schema
-from planning.common import WORKFLOW_STATE, ITEM_STATE
+from planning.common import WORKFLOW_STATE, ITEM_STATE, update_published_item, ITEM_ACTIONS
 
 
 planning_cancel_schema = deepcopy(planning_schema)
@@ -127,3 +127,9 @@ Coverage cancelled
 
         updates['ednote'] = ednote
         updates[ITEM_STATE] = WORKFLOW_STATE.CANCELLED
+
+    def on_updated(self, updates, original):
+        if original.get('lock_action') in [ITEM_ACTIONS.EDIT,
+                                           ITEM_ACTIONS.PLANNING_CANCEL,
+                                           ITEM_ACTIONS.CANCEL_ALL_COVERAGE]:
+            update_published_item(updates, original)

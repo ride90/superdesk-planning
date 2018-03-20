@@ -279,7 +279,6 @@ describe('actions.assignments.notification', () => {
 
             expect(coverage1.assigned_to.desk).toBe('desk1');
             expect(coverage1.assigned_to.state).toBe(undefined);
-            sinon.stub(assignmentsUi, 'fetch').callsFake(() => Promise.resolve());
 
             return store.test(done, assignmentNotifications.onAssignmentUpdated({}, payload))
                 .then(() => {
@@ -329,8 +328,8 @@ describe('actions.assignments.notification', () => {
                 {assignment: 'as1'}
             ))
                 .then(() => {
-                    expect(store.services.notify.error.callCount).toBe(1);
-                    expect(store.services.notify.error.args[0]).toEqual(
+                    expect(store.services.notify.warning.callCount).toBe(1);
+                    expect(store.services.notify.warning.args[0]).toEqual(
                         ['The Assignment you were viewing was removed.']
                     );
 

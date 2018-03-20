@@ -10,7 +10,7 @@ from superdesk.notification import push_notification
 from .events import EventsResource
 from .events_base_service import EventsBaseService
 from planning.common import WORKFLOW_STATE, PUBLISHED_STATE, published_state,\
-    UPDATE_SINGLE, UPDATE_METHODS, UPDATE_FUTURE
+    UPDATE_SINGLE, UPDATE_METHODS, UPDATE_FUTURE, get_item_publish_state
 
 
 class EventsPublishResource(EventsResource):
@@ -57,16 +57,29 @@ class EventsPublishService(EventsBaseService):
         return ids
 
     @staticmethod
-    def validate_event(event):
+    def validate_published_state(new_published_state):
         try:
-            assert event.get('pubstatus') in published_state
+            assert new_published_state in published_state
         except AssertionError:
             abort(409)
 
+    @staticmethod
+    def validate_item(doc):
+        errors = get_resource_service('planning_validator').post([{
+            'validate_on_publish': True,
+            'type': 'events',
+            'validate': doc
+        }])[0]
+
+        if errors:
+            # We use abort here instead of raising SuperdeskApiError.badRequestError
+            # as eve handles error responses differently between POST and PATCH methods
+            abort(400, description=errors)
+
     def _publish_single_event(self, doc, event):
-        event['pubstatus'] = doc['pubstatus']
-        self.validate_event(event)
-        updated_event = self.publish_event(event)
+        self.validate_published_state(doc['pubstatus'])
+        self.validate_item(event)
+        updated_event = self.publish_event(event, doc['pubstatus'])
 
         event_type = 'events:published' if doc['pubstatus'] == PUBLISHED_STATE.USABLE else 'events:unpublished'
         push_notification(
@@ -92,13 +105,17 @@ class EventsPublishService(EventsBaseService):
         else:
             published_events = historic + past + [original] + future
 
+        # First we want to validate that all events can be published
+        for event in published_events:
+            self.validate_published_state(doc['pubstatus'])
+            self.validate_item(event)
+
+        # Next we perform the actual publish
         updated_event = None
         ids = []
         items = []
         for event in published_events:
-            event['pubstatus'] = doc['pubstatus']
-            self.validate_event(event)
-            updated_event = self.publish_event(event)
+            updated_event = self.publish_event(event, doc['pubstatus'])
             ids.append(event[config.ID_FIELD])
             items.append({
                 'id': event[config.ID_FIELD],
@@ -118,17 +135,23 @@ class EventsPublishService(EventsBaseService):
 
         return ids
 
-    def publish_event(self, event):
+    def publish_event(self, event, new_publish_state):
         event.setdefault(config.VERSION, 1)
         event.setdefault('item_id', event['_id'])
         get_enqueue_service('publish').enqueue_item(event, 'event')
-        updates = {'state': self._get_publish_state(event), 'pubstatus': event['pubstatus']}
+        updates = {'state': get_item_publish_state(event, new_publish_state), 'pubstatus': new_publish_state}
+        event['pubstatus'] = new_publish_state
         updated_event = get_resource_service('events').update(event['_id'], updates, event)
         get_resource_service('events_history')._save_history(event, updates, 'publish')
         return updated_event
 
     @staticmethod
-    def _get_publish_state(event):
-        if event.get('pubstatus') == PUBLISHED_STATE.CANCELLED:
+    def _get_publish_state(event, new_publish_state):
+        if new_publish_state == PUBLISHED_STATE.CANCELLED:
             return WORKFLOW_STATE.KILLED
-        return WORKFLOW_STATE.SCHEDULED
+
+        if event.get('pubstatus') != PUBLISHED_STATE.USABLE:
+            # Publishing for first time, default to 'schedule' state
+            return WORKFLOW_STATE.SCHEDULED
+
+        return event.get('state')

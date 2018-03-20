@@ -18,7 +18,7 @@ from apps.publish.enqueue import get_enqueue_service
 
 from eve.utils import config
 from planning.planning import PlanningResource
-from planning.common import WORKFLOW_STATE, PUBLISHED_STATE, published_state
+from planning.common import WORKFLOW_STATE, PUBLISHED_STATE, published_state, get_item_publish_state
 
 
 class PlanningPublishResource(PlanningResource):
@@ -48,41 +48,63 @@ class PlanningPublishService(BaseService):
                 _id=doc['planning'],
                 _etag=doc['etag']
             )
-            if plan:
-                plan['pubstatus'] = doc['pubstatus']
-                self.validate_planning(plan)
-                self.publish_planning(plan)
-                ids.append(doc['planning'])
-            else:
+
+            self.validate_item(plan)
+
+            if not plan:
                 abort(412)
+
+            self.validate_published_state(doc['pubstatus'])
+            self.publish_planning(plan, doc['pubstatus'])
+            ids.append(doc['planning'])
         return ids
 
     def on_created(self, docs):
         for doc in docs:
             push_notification(
                 'planning:published',
-                item=str(doc.get(config.ID_FIELD)),
-                user=str(doc.get('version_creator', ''))
+                item=str(doc.get('planning')),
+                etag=doc.get('_etag'),
+                pubstatus=doc.get('pubstatus'),
             )
 
-    def validate_planning(self, plan):
+    def validate_published_state(self, new_publish_state):
         try:
-            assert plan.get('pubstatus') in published_state
+            assert new_publish_state in published_state
         except AssertionError:
             abort(409)
 
-    def publish_planning(self, plan):
+    @staticmethod
+    def validate_item(doc):
+        errors = get_resource_service('planning_validator').post([{
+            'validate_on_publish': True,
+            'type': 'planning',
+            'validate': doc
+        }])[0]
+
+        if errors:
+            # We use abort here instead of raising SuperdeskApiError.badRequestError
+            # as eve handles error responses differently between POST and PATCH methods
+            abort(400, description=errors)
+
+    def publish_planning(self, plan, new_publish_state):
         """Publish a Planning item
 
         """
         plan.setdefault(config.VERSION, 1)
         plan.setdefault('item_id', plan['_id'])
-        updates = {'state': self._get_publish_state(plan), 'pubstatus': plan['pubstatus']}
+        updates = {'state': get_item_publish_state(plan, new_publish_state), 'pubstatus': new_publish_state}
+        plan['pubstatus'] = new_publish_state
         get_resource_service('planning').update(plan['_id'], updates, plan)
         get_resource_service('planning_history')._save_history(plan, updates, 'publish')
         get_enqueue_service('publish').enqueue_item(plan, 'planning')
 
-    def _get_publish_state(self, plan):
-        if plan.get('pubstatus') == PUBLISHED_STATE.CANCELLED:
+    def _get_publish_state(self, plan, new_publish_state):
+        if new_publish_state == PUBLISHED_STATE.CANCELLED:
             return WORKFLOW_STATE.KILLED
-        return WORKFLOW_STATE.SCHEDULED
+
+        if plan.get('pubstatus') != PUBLISHED_STATE.USABLE:
+            # Publishing for first time, default to 'schedule' state
+            return WORKFLOW_STATE.SCHEDULED
+
+        return plan.get('state')

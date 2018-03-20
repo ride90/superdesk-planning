@@ -82,7 +82,14 @@ const unspike = (events) => (
         let eventsToUnspike = (Array.isArray(events) ? events : [events]);
 
         return Promise.all(
-            eventsToUnspike.map((event) => api.update('events_unspike', event, {}))
+            eventsToUnspike.map((event) => {
+                event.update_method = get(event, 'update_method.value', EventUpdateMethods[0].value);
+                return api.update(
+                    'events_unspike',
+                    event,
+                    {update_method: event.update_method}
+                );
+            })
         )
             .then(
                 () => Promise.resolve(eventsToUnspike),
@@ -934,7 +941,7 @@ const postponeEvent = (event) => (
     )
 );
 
-const publishEvent = (event) => (
+const publish = (event) => (
     (dispatch, getState, {api}) => (
         api.save('events_publish', {
             event: event._id,
@@ -1181,6 +1188,50 @@ const updateRepetitions = (event) => (
     )
 );
 
+const getEventContacts = (searchText, searchFields = []) => (
+    (dispatch, getState, {api}) => api('contacts')
+        .query({
+            source: {
+                query: {
+                    bool: {
+                        must: [{
+                            query_string: {
+                                default_field: 'first_name',
+                                fields: searchFields,
+                                query: searchText + '*',
+                            },
+                        }],
+                        should: [
+                            {term: {is_active: true}},
+                            {term: {public: true}},
+                        ],
+                    },
+                },
+            },
+        })
+);
+
+const fetchEventContactsByIds = (ids = []) => (
+    (dispatch, getState, {api}) => api('contacts')
+        .query({
+            source: {
+                query: {
+                    bool: {
+                        must: [{
+                            terms: {
+                                _id: ids,
+                            },
+                        }],
+                        should: [
+                            {term: {is_active: true}},
+                            {term: {public: true}},
+                        ],
+                    },
+                },
+            },
+        })
+);
+
 // eslint-disable-next-line consistent-this
 const self = {
     loadEventsByRecurrenceId,
@@ -1204,7 +1255,7 @@ const self = {
     queryLockedEvents,
     getEvent,
     loadAssociatedPlannings,
-    publishEvent,
+    publish,
     fetchEventHistory,
     unpublish,
     _uploadFiles,
@@ -1215,6 +1266,8 @@ const self = {
     fetchById,
     duplicate,
     updateRepetitions,
+    getEventContacts,
+    fetchEventContactsByIds,
 };
 
 export default self;

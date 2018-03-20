@@ -33,6 +33,7 @@ const toggleDetails = [
     'subject',
     'definition_long',
     'internal_note',
+    'ednote'
 ];
 
 export class EventEditorComponent extends React.Component {
@@ -40,11 +41,6 @@ export class EventEditorComponent extends React.Component {
         super(props);
 
         this.dom = {slugline: null};
-        this.onChange = this.onChange.bind(this);
-    }
-
-    onChange(field, value) {
-        this.props.onChangeHandler(field, value);
     }
 
     componentDidMount() {
@@ -79,6 +75,7 @@ export class EventEditorComponent extends React.Component {
             dirty,
             errors,
             plannings,
+            onChangeHandler,
         } = this.props;
 
         const existingEvent = !!get(diff, '_id');
@@ -88,7 +85,7 @@ export class EventEditorComponent extends React.Component {
             item: item,
             diff: diff,
             readOnly: readOnly,
-            onChange: this.onChange,
+            onChange: onChangeHandler,
             formProfile: formProfile,
             errors: errors,
             showErrors: submitFailed,
@@ -118,25 +115,27 @@ export class EventEditorComponent extends React.Component {
                         refNode={(node) => this.dom.slugline = node}
                         {...fieldProps}
                     />
+
                     <Field
                         component={TextInput}
                         field="name"
                         label={gettext('Name')}
                         {...fieldProps}
                     />
+
                     <Field
                         component={TextAreaInput}
                         field="definition_short"
                         label={gettext('Description')}
                         {...fieldProps}
                     />
+
                     <Field
                         component={SelectInput}
                         field="occur_status"
                         label={gettext('Occurrence Status')}
                         defaultValue={EVENTS.DEFAULT_VALUE(occurStatuses).occur_status}
                         options={occurStatuses}
-                        noMargin={true}
                         {...fieldProps}
                     />
 
@@ -211,10 +210,18 @@ export class EventEditorComponent extends React.Component {
                             label={gettext('Long Description')}
                             {...fieldProps}
                         />
+
                         <Field
                             component={TextAreaInput}
                             field="internal_note"
                             label={gettext('Internal Note')}
+                            {...fieldProps}
+                        />
+
+                        <Field
+                            component={TextAreaInput}
+                            field="ednote"
+                            label={gettext('Ed Note')}
                             noMargin={true}
                             {...fieldProps}
                         />

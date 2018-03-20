@@ -1,6 +1,6 @@
 import {orderBy, cloneDeep, uniq, get} from 'lodash';
 import moment from 'moment';
-import {EVENTS, RESET_STORE, INIT_STORE, LOCKS, SPIKED_STATE} from '../constants';
+import {EVENTS, RESET_STORE, INIT_STORE, LOCKS} from '../constants';
 import {createReducer} from '../utils';
 import {WORKFLOW_STATE} from '../constants';
 
@@ -46,36 +46,24 @@ const removeLock = (event, etag = null) => {
     }
 };
 
-export const spikeEvent = (events, eventsInList, filteredSpikeState, payload) => {
-    if (!(payload.id in events)) return;
+export const spikeEvent = (events, payload) => {
+    const event = get(events, payload.id);
 
-    const event = events[payload.id];
-    const eventIndex = eventsInList.indexOf(payload.id);
+    if (!event) return;
 
     event.state = WORKFLOW_STATE.SPIKED;
     event.revert_state = payload.revert_state;
     event._etag = payload.etag;
-
-    if (eventIndex > -1 && filteredSpikeState === SPIKED_STATE.NOT_SPIKED) {
-        eventsInList.splice(eventIndex, 1);
-    }
 };
 
-export const unspikeEvent = (state, payload) => {
-    const spikeState = get(payload, 'spikeState', SPIKED_STATE.NOT_SPIKED);
-    let event = state.events[payload.event._id];
+export const unspikeEvent = (events, payload) => {
+    const event = get(events, payload.id);
 
-    removeLock(event, payload.event._etag);
-    event.state = payload.event.state;
+    if (!event) return;
+
+    event.state = payload.state;
     delete event.revert_state;
-
-    const eventIndex = state.eventsInList.indexOf(event._id);
-
-    if (eventIndex > -1 && spikeState === SPIKED_STATE.SPIKED) {
-        state.eventsInList.splice(eventIndex, 1);
-    }
-
-    return state;
+    event._etag = payload.etag;
 };
 
 const eventsReducer = createReducer(initialState, {
@@ -231,19 +219,19 @@ const eventsReducer = createReducer(initialState, {
         let events = cloneDeep(state.events);
         let event = events[payload.event._id];
 
-        let definition = `------------------------------------------------------------
+        let ednote = `------------------------------------------------------------
 Event Postponed
 `;
 
         if (get(payload, 'reason', null) !== null) {
-            definition += `Reason: ${payload.reason}\n`;
+            ednote += `Reason: ${payload.reason}\n`;
         }
 
-        if (get(event, 'definition_long', null) !== null) {
-            definition = `${event.definition_long}\n\n${definition}`;
+        if (get(event, 'ednote', null) !== null) {
+            ednote = `${event.ednote}\n\n${ednote}`;
         }
 
-        event.definition_long = definition;
+        event.ednote = ednote;
         event.state = WORKFLOW_STATE.POSTPONED;
 
         removeLock(event);
@@ -272,42 +260,31 @@ Event Postponed
         // Otherwise iterate over the items and mark them
         // with their new etag and spike state
         let events = cloneDeep(state.events);
-        let eventsInList = cloneDeep(state.eventsInList);
 
-        payload.items.forEach((event) => {
-            spikeEvent(
-                events,
-                eventsInList,
-                payload.filteredSpikeState,
-                event
-            );
-        });
+        payload.items.forEach((event) => spikeEvent(events, event));
 
         return {
             ...state,
             events,
-            eventsInList
         };
     },
 
     [EVENTS.ACTIONS.UNSPIKE_EVENT]: (state, payload) => {
-        // If the event is not loaded, disregard this action
-        if (!(get(payload, 'event._id') in state.events))
+        // If there is only 1 event and that event is not loaded
+        // then disregard this action
+        if (get(payload, 'items.length', 0) < 2 && !get(state.events, payload.item))
             return state;
 
-        return unspikeEvent(cloneDeep(state), payload);
-    },
+        // Otherwise iterate over the items and mark them
+        // with their new etag and spike state
+        let events = cloneDeep(state.events);
 
-    [EVENTS.ACTIONS.SPIKE_RECURRING_EVENTS]: (state, payload) => {
-        let newState = cloneDeep(state);
+        payload.items.forEach((event) => unspikeEvent(events, event));
 
-        payload.events.forEach((event) => {
-            if (get(event, '_id') in state.events) {
-                spikeEvent(newState, {event: event, spikeState: payload.spikeState});
-            }
-        });
-
-        return newState;
+        return {
+            ...state,
+            events,
+        };
     },
 
     [EVENTS.ACTIONS.MARK_EVENT_PUBLISHED]: (state, payload) => (
@@ -361,19 +338,19 @@ const markEventCancelled = (events, eventId, etag, reason, occurStatus) => {
 
     let updatedEvent = events[eventId];
 
-    let definition = `------------------------------------------------------------
+    let ednote = `------------------------------------------------------------
 Event Cancelled
 `;
 
     if (reason !== null) {
-        definition += `Reason: ${reason}\n`;
+        ednote += `Reason: ${reason}\n`;
     }
 
-    if (get(updatedEvent, 'definition_long', null) !== null) {
-        definition = `${updatedEvent.definition_long}\n\n${definition}`;
+    if (get(updatedEvent, 'ednote', null) !== null) {
+        ednote = `${updatedEvent.ednote}\n\n${ednote}`;
     }
 
-    updatedEvent.definition_long = definition;
+    updatedEvent.ednote = ednote;
     updatedEvent.state = WORKFLOW_STATE.CANCELLED;
     updatedEvent.occur_status = occurStatus;
     updatedEvent._etag = etag;

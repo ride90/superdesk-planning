@@ -2,8 +2,8 @@ import moment from 'moment-timezone';
 import {createStore as _createStore, applyMiddleware} from 'redux';
 import planningApp from '../reducers';
 import thunkMiddleware from 'redux-thunk';
-import createLogger from 'redux-logger';
-import {get, set, map, cloneDeep} from 'lodash';
+import {createLogger} from 'redux-logger';
+import {get, set, map, cloneDeep, forEach} from 'lodash';
 import {
     PUBLISHED_STATE,
     WORKFLOW_STATE,
@@ -310,11 +310,23 @@ export const getErrorMessage = (error, defaultMessage) => {
         return get(error, 'data._message');
     } else if (get(error, 'data._issues.validator exception')) {
         return get(error, 'data._issues.validator exception');
+    } else if (get(error, 'data._error.message')) {
+        return error.data._error.message;
     } else if (typeof error === 'string') {
         return error;
     }
 
     return defaultMessage;
+};
+
+export const notifyError = (notify, error, defaultMessage) => {
+    const message = getErrorMessage(error, defaultMessage);
+
+    if (Array.isArray(message)) {
+        message.forEach((msg) => notify.error(msg));
+    } else {
+        notify.error(message);
+    }
 };
 
 /**
@@ -341,7 +353,7 @@ export const getCreator = (item, creator, users) => {
 };
 
 export const getItemInArrayById = (items, id, field = '_id') => (
-    id ? items.find((item) => get(item, field) === id) : null
+    id && Array.isArray(items) ? items.find((item) => get(item, field) === id) : null
 );
 
 export const isSameItemId = (item1, item2) => get(item1, '_id') === get(item2, '_id');
@@ -368,17 +380,17 @@ export const getItemWorkflowStateLabel = (item, field = 'state') => {
     switch (getItemWorkflowState(item, field)) {
     case WORKFLOW_STATE.DRAFT:
         return {
-            label: gettext('draft'),
+            label: gettext('Draft'),
             iconHollow: true,
         };
     case WORKFLOW_STATE.SPIKED:
         return {
-            label: gettext('spiked'),
+            label: gettext('Spiked'),
             iconType: 'alert',
         };
     case WORKFLOW_STATE.INGESTED:
         return {
-            label: gettext('ingested'),
+            label: gettext('Ingested'),
             iconHollow: true,
         };
     case WORKFLOW_STATE.SCHEDULED:
@@ -526,6 +538,21 @@ export const getItemType = (item) => {
     return ITEM_TYPE.UNKNOWN;
 };
 
+export const getItemTypeString = (item) => {
+    switch (getItemType(item)) {
+    case ITEM_TYPE.EVENT:
+        return gettext('Event');
+    case ITEM_TYPE.PLANNING:
+        return gettext('Planning Item');
+    case ITEM_TYPE.ASSIGNMENT:
+        return gettext('Assignment');
+    case ITEM_TYPE.ARCHIVE:
+        return gettext('News Item');
+    default:
+        return gettext('item');
+    }
+};
+
 export const getDateTimeString = (date, dateFormat, timeFormat) => (
     // !! Note - expects date as instance of moment() !! //
     date.format(dateFormat) + ' @ ' + date.format(timeFormat)
@@ -598,3 +625,11 @@ export const getSearchDateRange = (currentSearch) => {
 };
 
 export const getMapUrl = (url, name, address) => (`${url}${name} ${address}`);
+
+export const updateFormValues = (diff, field, value) => {
+    if (typeof field === 'string') {
+        set(diff, field, value);
+    } else if (typeof field === 'object') {
+        forEach(field, (val, key) => set(diff, key, val));
+    }
+};

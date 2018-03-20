@@ -1,5 +1,6 @@
 export {ItemActionConfirmationModal} from './modal';
 export {UpdateRecurringEventsForm} from './forms/updateRecurringEventsForm';
+export {UnspikeEventForm} from './forms/unspikeEventForm';
 export {SpikeEventForm} from './forms/spikeEventForm';
 export {CancelEventForm} from './forms/cancelEventForm';
 export {PostponeEventForm} from './forms/postponeEventForm';
@@ -10,3 +11,4 @@ export {CancelPlanningCoveragesForm} from './forms/cancelPlanningCoveragesForm';
 export {UpdateAssignmentForm} from './forms/updateAssignmentForm';
 export {EditPriorityForm} from './forms/editPriorityForm';
 export {UpdateEventRepetitionsForm} from './forms/updateEventRepetitions';
+export {PublishEventsForm} from './forms/publishEventsForm';

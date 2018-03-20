@@ -97,6 +97,7 @@ export class PlanningEditorComponent extends React.Component {
         let newPlanning = {
             _type: ITEM_TYPE.PLANNING,
             slugline: addNewsItemToPlanning.slugline,
+            planning_date: moment(),
             ednote: get(addNewsItemToPlanning, 'ednote'),
             subject: get(addNewsItemToPlanning, 'subject'),
             anpa_category: get(addNewsItemToPlanning, 'anpa_category'),
@@ -119,6 +120,12 @@ export class PlanningEditorComponent extends React.Component {
         let newCoverage = cloneDeep(coverage);
 
         newCoverage.news_coverage_status = {qcode: 'ncostat:int'};
+        newCoverage.workflow_status = WORKFLOW_STATE.DRAFT;
+        if (coverage.workflow_status == WORKFLOW_STATE.CANCELLED) {
+            newCoverage.planning.internal_note = '';
+            newCoverage.planning.ednote = '';
+        }
+
         delete newCoverage.coverage_id;
         delete newCoverage.assigned_to;
 

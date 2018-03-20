@@ -1,4 +1,3 @@
-/* eslint-disable react/no-multi-comp */
 import React from 'react';
 import PropTypes from 'prop-types';
 import classNames from 'classnames';
@@ -8,6 +7,7 @@ import {OverlayTrigger, Tooltip} from 'react-bootstrap';
 
 
 import {
+    getItemWorkflowStateLabel,
     getItemInArrayById,
     gettext,
     planningUtils
@@ -15,15 +15,28 @@ import {
 
 export const CoverageIcon = ({
     coverage,
-    withTooltip,
     users,
     desks,
     timeFormat,
-    withoutTime,
+    dateFormat,
 }) => {
-    let user, desk, assignmentStr;
+    const user = getItemInArrayById(users, get(coverage, 'assigned_to.user'));
+    const desk = getItemInArrayById(desks, get(coverage, 'assigned_to.desk'));
+    const assignmentStr = desk ? 'Desk: ' + desk.name : 'Unassigned';
+    const scheduledStr = get(coverage, 'planning.scheduled') ?
+        moment(coverage.planning.scheduled).format(dateFormat + ' ' + timeFormat) : null;
+    const state = getItemWorkflowStateLabel(get(coverage, 'assigned_to'));
 
-    const getIcon = () => (
+    return (<OverlayTrigger
+        placement="bottom"
+        overlay={
+            <Tooltip id={coverage.coverage_id}>
+                {gettext(assignmentStr)}
+                {user && <span><br />{gettext('User: ' + user.display_name)}</span>}
+                {scheduledStr && <span><br />Due: {scheduledStr}</span>}
+                {desk && <span><br />{state.label}</span>}
+            </Tooltip>
+        }>
         <span className="sd-list-item__inline-icon icn-mix sd-list-item__item-type">
             <i className={classNames(
                 planningUtils.getCoverageWorkflowIcon(coverage),
@@ -34,34 +47,13 @@ export const CoverageIcon = ({
                 planningUtils.getCoverageIconColor(coverage),
                 'sd-list-item__inline-icon')}/>
         </span>
-    );
-
-    if (withTooltip) {
-        user = getItemInArrayById(users, get(coverage, 'assigned_to.user'));
-        desk = getItemInArrayById(desks, get(coverage, 'assigned_to.desk'));
-        assignmentStr = desk ? 'Desk: ' + desk.name : 'Unassigned';
-
-        return (<OverlayTrigger
-            placement="bottom"
-            overlay={
-                <Tooltip id={coverage.coverage_id}>
-                    {gettext(assignmentStr)}
-                    {user && <span><br />{gettext('User: ' + user.display_name)}</span>}
-                    {!withoutTime && <span><br />Due: {moment(coverage.planning.scheduled).format(timeFormat)}</span>}
-                </Tooltip>
-            }>
-            {getIcon()}
-        </OverlayTrigger>);
-    }
-
-    return getIcon();
+    </OverlayTrigger>);
 };
 
 CoverageIcon.propTypes = {
     coverage: PropTypes.object,
-    withTooltip: PropTypes.bool,
-    withoutTime: PropTypes.bool,
     users: PropTypes.array,
     desks: PropTypes.array,
     timeFormat: PropTypes.string,
+    dateFormat: PropTypes.string,
 };

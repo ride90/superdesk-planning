@@ -63,21 +63,22 @@ class EventsRescheduleService(EventsBaseService):
 
     @staticmethod
     def _mark_event_rescheduled(updates, original, keep_dates=False):
-        definition = '''------------------------------------------------------------
+        ednote = '''------------------------------------------------------------
 Event Rescheduled
 '''
 
         reason = updates.get('reason', None)
-        if reason is not None:
-            definition += 'Reason: {}\n'.format(reason)
 
-        if 'definition_long' in original:
-            definition = original['definition_long'] + '\n\n' + definition
+        if reason is not None:
+            ednote += 'Reason: {}\n'.format(reason)
+
+        if 'ednote' in original:
+            ednote = original['ednote'] + '\n\n' + ednote
 
         # Update the workflow state and definition of the original Event
         updates.update({
             'state': WORKFLOW_STATE.RESCHEDULED,
-            'definition_long': definition
+            'ednote': ednote
         })
 
         # We don't want to update the schedule of this current event
@@ -88,6 +89,7 @@ Event Rescheduled
     @staticmethod
     def _reschedule_event_plannings(updates, original, plans=None, state=None):
         planning_service = get_resource_service('planning')
+        planning_cancel_service = get_resource_service('planning_cancel')
         planning_reschedule_service = get_resource_service('planning_reschedule')
         reason = updates.get('reason', None)
 
@@ -107,6 +109,7 @@ Event Rescheduled
                 updated_plan,
                 plan
             )
+            planning_cancel_service.update(plan[config.ID_FIELD], {'cancel_all_coverage': True}, plan)
 
     @staticmethod
     def _duplicate_event(updates, original, events_service):
@@ -138,7 +141,7 @@ Event Rescheduled
         reason = updates.get('reason')
 
         events_service = get_resource_service('events')
-        historic, past, future = self.get_recurring_timeline(original, True)
+        historic, past, future = self.get_recurring_timeline(original, postponed=True)
 
         # Determine if the selected event is the first one, if so then
         # act as if we're changing future events

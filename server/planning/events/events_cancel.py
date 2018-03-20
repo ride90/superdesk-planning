@@ -113,25 +113,25 @@ class EventsCancelService(EventsBaseService):
 
         reason = updates.get('reason', None)
 
-        definition = '''------------------------------------------------------------
+        ednote = '''------------------------------------------------------------
 Event Cancelled
 '''
         if reason is not None:
-            definition += 'Reason: {}\n'.format(reason)
+            ednote += 'Reason: {}\n'.format(reason)
 
-        if 'definition_long' in original:
-            definition = original['definition_long'] + '\n\n' + definition
+        if 'ednote' in original:
+            ednote = original['ednote'] + '\n\n' + ednote
 
         remove_lock_information(updates)
         updates.update({
             'state': WORKFLOW_STATE.CANCELLED,
-            'definition_long': definition,
+            'ednote': ednote,
             'occur_status': occur_cancel_state
         })
 
     def update_recurring_events(self, updates, original, update_method):
         occur_cancel_state = self._get_cancel_state()
-        historic, past, future = self.get_recurring_timeline(original, True)
+        historic, past, future = self.get_recurring_timeline(original, postponed=True)
 
         # Determine if the selected event is the first one, if so then
         # act as if we're changing future events

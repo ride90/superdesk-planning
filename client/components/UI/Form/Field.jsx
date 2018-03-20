@@ -59,6 +59,7 @@ export class Field extends React.Component {
         const schema = get(formProfile, `schema["${profileField}"]`) || {};
         let currentError = (this.state.dirty || showErrors) ? (error || get(errors, field)) : null;
         const currentValue = value || get(diff, field);
+        // console.log('field', currentError, showErrors, errors);
 
         const Component = component;
         const child = <Component
@@ -67,8 +68,8 @@ export class Field extends React.Component {
             value={currentValue || defaultValue}
             diff={diff}
             onChange={onChange}
-            maxLength={schema.maxlength}
-            required={schema.required}
+            maxLength={schema.validate_on_publish ? 0 : schema.maxlength}
+            required={schema.validate_on_publish ? false : schema.required}
             message={currentError}
             invalid={!!currentError}
             errors={errors}

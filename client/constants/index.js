@@ -13,6 +13,7 @@ export {KEYCODES} from './keycodes';
 export {EVENTS_PLANNING} from './eventsplanning';
 export {COVERAGES} from './coverages';
 export {MULTISELECT} from './multiselect';
+export {CONTACTS} from './contacts';
 
 export const LIST_ITEM_1_LINE_HEIGHT = 38;
 export const LIST_ITEM_2_LINES_HEIGHT = 56;
@@ -49,7 +50,7 @@ export const PUBLISHED_STATE = {
 
 export const GENERIC_ITEM_ACTIONS = {
     DIVIDER: {label: 'Divider'},
-    LABEL: {label: 'Label'},
+    LABEL: {text: 'Label'},
 };
 
 export const SPIKED_STATE = {

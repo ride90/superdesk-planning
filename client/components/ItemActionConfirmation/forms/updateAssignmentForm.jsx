@@ -21,10 +21,10 @@ export class UpdateAssignmentComponent extends React.Component {
         super(props);
         this.state = {
             diff: {},
-            submitting: false,
             valid: true,
         };
 
+        this.dom = {popupContainer: null};
         this.onChange = this.onChange.bind(this);
         this.setValid = this.setValid.bind(this);
     }
@@ -50,10 +50,7 @@ export class UpdateAssignmentComponent extends React.Component {
     }
 
     submit() {
-        // Modal closes after submit. So, resetting submitting is not required
-        this.setState({submitting: true});
-
-        this.props.onSubmit(this.state.diff);
+        return this.props.onSubmit(this.state.diff);
     }
 
     setValid(valid) {
@@ -139,8 +136,11 @@ export class UpdateAssignmentComponent extends React.Component {
                     priorities={this.props.priorities}
                     showDesk={canEditDesk}
                     showPriority={false}
+                    popupContainer={() => this.dom.popupContainer}
                     setValid={this.setValid}
                 />
+
+                <div ref={(node) => this.dom.popupContainer = node} />
             </div>
         );
     }

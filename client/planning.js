@@ -22,7 +22,7 @@ import * as actions from './actions';
 import * as selectors from './selectors';
 import {EVENTS, PLANNING, ITEM_TYPE} from './constants';
 
-class PlanningApp extends React.Component {
+class PlanningAppComponent extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -102,7 +102,7 @@ class PlanningApp extends React.Component {
 
     render() {
         const sectionClassName = classNames(
-            'sd-content sd-page-content--slide-in',
+            'sd-content sd-content--margin-b30 sd-page-content--slide-in',
             {'sd-page-content--slide-in--open': !!this.props.editItemType}
         );
 
@@ -153,6 +153,8 @@ class PlanningApp extends React.Component {
             loadingIndicator,
             users,
             desks,
+            isViewFiltered,
+            clearSearch
         } = this.props;
 
         const itemActions = {
@@ -237,6 +239,8 @@ class PlanningApp extends React.Component {
                         selectAgenda={selectAgenda}
                         currentAgendaId={currentAgendaId}
                         showFilters={!addNewsItemToPlanning}
+                        isViewFiltered={isViewFiltered}
+                        clearSearch={clearSearch}
                     />
                     <div className="sd-column-box--3">
                         <SearchPanel toggleFilterPanel={this.toggleFilterPanel} />
@@ -265,7 +269,7 @@ class PlanningApp extends React.Component {
     }
 }
 
-PlanningApp.propTypes = {
+PlanningAppComponent.propTypes = {
     groups: PropTypes.array,
     editItem: PropTypes.object,
     editItemType: PropTypes.string,
@@ -318,6 +322,8 @@ PlanningApp.propTypes = {
     multiSelectPlanning: PropTypes.func,
     selectedEventIds: PropTypes.array,
     selectedPlanningIds: PropTypes.array,
+    isViewFiltered: PropTypes.bool,
+    clearSearch: PropTypes.func
 };
 
 const mapStateToProps = (state) => ({
@@ -342,7 +348,8 @@ const mapStateToProps = (state) => ({
     currentWorkspace: selectors.getCurrentWorkspace(state),
     selectedEventIds: selectors.multiSelect.selectedEventIds(state),
     selectedPlanningIds: selectors.multiSelect.selectedPlanningIds(state),
-    loadingIndicator: selectors.main.loadingIndicator(state)
+    loadingIndicator: selectors.main.loadingIndicator(state),
+    isViewFiltered: selectors.main.isViewFiltered(state)
 });
 
 const mapDispatchToProps = (dispatch, ownProps) => ({
@@ -373,9 +380,11 @@ const mapDispatchToProps = (dispatch, ownProps) => ({
 
         return dispatch(actions.multiSelect.selectPlannings(planningId));
     },
+    clearSearch: () => dispatch(actions.main.clearSearch()),
     // Event Item actions:
     [EVENTS.ITEM_ACTIONS.DUPLICATE.actionName]: (event) => dispatch(actions.events.ui.duplicate(event)),
-    [EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName]: (event) => dispatch(actions.addEventToCurrentAgenda(event)),
+    [EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName]: (event, planningDate) =>
+        dispatch(actions.addEventToCurrentAgenda(event, planningDate)),
     [EVENTS.ITEM_ACTIONS.UNSPIKE.actionName]: (event) => dispatch(actions.events.ui.openUnspikeModal(event)),
     [EVENTS.ITEM_ACTIONS.SPIKE.actionName]: (event) => dispatch(actions.events.ui.openSpikeModal(event)),
     [EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName]: (event) => dispatch(actions.events.ui.openCancelModal(event)),
@@ -401,4 +410,4 @@ const mapDispatchToProps = (dispatch, ownProps) => ({
         (planning) => dispatch(actions.planning.ui.openCancelAllCoverageModal(planning))
 });
 
-export default connect(mapStateToProps, mapDispatchToProps)(PlanningApp);
+export const PlanningApp = connect(mapStateToProps, mapDispatchToProps)(PlanningAppComponent);

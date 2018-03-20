@@ -10,6 +10,10 @@ export {eventValidators, formProfile, validateAssignment};
 import {get, set, isEqual} from 'lodash';
 
 export const validateField = (dispatch, getState, profileName, field, value, profile, errors) => {
+    if (get(profile, `schema.${field}.validate_on_publish`)) {
+        return;
+    }
+
     const funcs = get(validators[profileName], field, []) || [formProfile];
 
     funcs.forEach((func) => func(dispatch, getState, field, value, profile, errors));
@@ -105,6 +109,7 @@ export const validators = {
         occur_status: [formProfile],
         slugline: [formProfile],
         dates: [eventValidators.validateDates],
+        ednote: [formProfile],
     },
     planning: {
         planning_date: [formProfile],

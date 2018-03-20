@@ -12,11 +12,9 @@ import {AbsoluteDate} from '../..';
 export class EditPriorityComponent extends React.Component {
     constructor(props) {
         super(props);
-        this.state = {
-            priority: {},
-            submitting: false,
-        };
+        this.state = {priority: {}};
 
+        this.dom = {popupContainer: null};
         this.onChange = this.onChange.bind(this);
     }
 
@@ -40,10 +38,7 @@ export class EditPriorityComponent extends React.Component {
     }
 
     submit() {
-        // Modal closes after submit. So, resetting submitting is not required
-        this.setState({submitting: true});
-
-        this.props.onSubmit({
+        return this.props.onSubmit({
             ...this.props.initialValues,
             priority: get(this.state.priority, 'qcode') || null
         });
@@ -125,8 +120,11 @@ export class EditPriorityComponent extends React.Component {
                         options={this.props.priorities}
                         iconName="priority-label"
                         noMargin={true}
+                        popupContainer={() => this.dom.popupContainer}
                     />
                 </Row>
+
+                <div ref={(node) => this.dom.popupContainer = node} />
             </div>
         );
     }

@@ -1,7 +1,6 @@
-import {showModal, hideModal, locks} from '../index';
+import {showModal, locks} from '../index';
 import {PRIVILEGES, EVENTS, MODALS, SPIKED_STATE, MAIN} from '../../constants';
 import eventsApi from './api';
-import {fetchSelectedAgendaPlannings} from '../agenda';
 import main from '../main';
 import * as selectors from '../../selectors';
 import {get} from 'lodash';
@@ -193,12 +192,10 @@ const spike = (item) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.spike(item))
             .then((events) => {
-                dispatch(hideModal());
                 notify.success(gettext('The event(s) have been spiked'));
                 dispatch(main.closePreviewAndEditorForItems(events));
                 return Promise.resolve(events);
             }, (error) => {
-                dispatch(hideModal());
                 notify.error(
                     getErrorMessage(error, gettext('Failed to spike the event(s)'))
                 );
@@ -211,33 +208,13 @@ const spike = (item) => (
 const unspike = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.unspike(event))
-            .then((events) => (
-                Promise.all(
-                    [
-                        dispatch(self.scheduleRefetch()),
-                        dispatch(fetchSelectedAgendaPlannings()),
-                    ]
-                )
-                    .then(
-                        () => {
-                            dispatch(hideModal());
-                            dispatch(main.closePreviewAndEditorForItems(events));
-                            notify.success(gettext('The event(s) have been unspiked'));
-                            return Promise.resolve(events);
-                        },
-
-                        (error) => {
-                            notify.error(
-                                getErrorMessage(error, gettext('Failed to load events and plannings'))
-                            );
-
-                            return Promise.reject(error);
-                        }
-                    )
-
-            ), (error) => {
+            .then((events) => {
+                notify.success(gettext('The event(s) have been unspiked'));
+                dispatch(main.closePreviewAndEditorForItems(events));
+                return Promise.resolve(events);
+            }, (error) => {
                 notify.error(
-                    getErrorMessage(error, 'Failed to spike the event(s)')
+                    getErrorMessage(error, gettext('Failed to spike the event(s)'))
                 );
 
                 return Promise.reject(error);
@@ -249,8 +226,12 @@ const unspike = (event) => (
  * Action Dispatcher to re-fetch the current list of events.
  */
 const refetch = () => (
-    (dispatch, getState, {notify}) => (
-        dispatch(eventsApi.refetch())
+    (dispatch, getState, {notify}) => {
+        if (!selectors.main.isEventsView(getState())) {
+            return Promise.resolve([]);
+        }
+
+        return dispatch(eventsApi.refetch())
             .then((events) => {
                 dispatch(self.setEventsList(events.map((e) => (e._id))));
                 return Promise.resolve(events);
@@ -260,8 +241,8 @@ const refetch = () => (
                 );
 
                 return Promise.reject(error);
-            })
-    )
+            });
+    }
 );
 
 
@@ -283,17 +264,12 @@ const cancelEvent = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.cancelEvent(event))
             .then(() => {
-                dispatch(hideModal());
-                notify.success('Event has been cancelled');
-
+                notify.success(gettext('Event has been cancelled'));
                 return Promise.resolve();
             }, (error) => {
-                dispatch(hideModal());
-
                 notify.error(
-                    getErrorMessage(error, 'Failed to cancel the Event!')
+                    getErrorMessage(error, gettext('Failed to cancel the Event!'))
                 );
-
                 return Promise.reject(error);
             })
     )
@@ -303,17 +279,12 @@ const postponeEvent = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.postponeEvent(event))
             .then(() => {
-                dispatch(hideModal());
-                notify.success('Event has been postponed');
-
+                notify.success(gettext('Event has been postponed'));
                 return Promise.resolve();
             }, (error) => {
-                dispatch(hideModal());
-
                 notify.error(
-                    getErrorMessage(error, 'Failed to postpone the Event!')
+                    getErrorMessage(error, gettext('Failed to postpone the Event!'))
                 );
-
                 return Promise.reject(error);
             })
     )
@@ -333,6 +304,16 @@ const openSpikeModal = (event, publish = false) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.SPIKE.label,
+        null,
+        true,
+        publish
+    ))
+);
+
+const openUnspikeModal = (event, publish = false) => (
+    (dispatch) => dispatch(self._openActionModal(
+        event,
+        EVENTS.ITEM_ACTIONS.UNSPIKE.label,
         null,
         true,
         publish
@@ -436,7 +417,6 @@ const rescheduleEvent = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.rescheduleEvent(event))
             .then((updatedEvent) => {
-                dispatch(hideModal());
                 notify.success(gettext('Event has been rescheduled'));
 
                 const duplicatedEvent = get(updatedEvent, 'reschedule_to');
@@ -447,7 +427,7 @@ const rescheduleEvent = (event) => (
                             (newEvent) => dispatch(main.lockAndEdit(newEvent)),
                             (error) => {
                                 notify.error(
-                                    getErrorMessage(error, 'Failed to load duplicated Event.')
+                                    getErrorMessage(error, gettext('Failed to load duplicated Event.'))
                                 );
 
                                 return Promise.reject(error);
@@ -457,10 +437,8 @@ const rescheduleEvent = (event) => (
 
                 return dispatch(main.lockAndEdit(updatedEvent));
             }, (error) => {
-                dispatch(hideModal());
-
                 notify.error(
-                    getErrorMessage(error, 'Failed to reschedule the Event!')
+                    getErrorMessage(error, gettext('Failed to reschedule the Event!'))
                 );
 
                 return Promise.reject(error);
@@ -488,16 +466,12 @@ const updateEventTime = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.updateEventTime(event))
             .then(() => {
-                dispatch(hideModal());
-                notify.success('Event time has been update');
+                notify.success(gettext('Event time has been update'));
                 return Promise.resolve();
             }, (error) => {
-                dispatch(hideModal());
-
                 notify.error(
-                    getErrorMessage(error, 'Failed to update the Event time!')
+                    getErrorMessage(error, gettext('Failed to update the Event time!'))
                 );
-
                 return Promise.reject(error);
             })
     )
@@ -507,11 +481,9 @@ const updateRepetitions = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.updateRepetitions(event))
             .then((updatedEvent) => {
-                dispatch(hideModal());
                 notify.success(gettext('Event repetitions updated'));
                 return Promise.resolve(updatedEvent);
             }, (error) => {
-                dispatch(hideModal());
                 notify.error(
                     getErrorMessage(error, gettext('Failed to update Event repetitions'))
                 );
@@ -520,70 +492,20 @@ const updateRepetitions = (event) => (
     )
 );
 
-const saveAndPublish = (event, {save = true, publish = false, unpublish = false} = {}) => (
-    (dispatch) => {
-        if (!save) {
-            if (publish) {
-                return dispatch(self.publishEvent(event))
-                    .then((publishedEvent) => {
-                        dispatch(hideModal());
-                        return Promise.resolve(publishedEvent);
-                    });
-            } else if (unpublish) {
-                return dispatch(self.unpublish(event))
-                    .then((updatedEvent) => {
-                        dispatch(hideModal());
-                        return Promise.resolve(updatedEvent);
-                    });
-            }
-
-            dispatch(hideModal());
-            return Promise.resolve(event);
-        }
-
-        return dispatch(eventsApi.save(event))
-            .then((events) => {
-                if (publish) {
-                    return dispatch(self.publishEvent({
-                        ...events[0],
-                        update_method: get(event, 'update_method')
-                    }))
-                        .then(() => {
-                            dispatch(hideModal());
-                            return Promise.resolve(events);
-                        });
-                } else if (unpublish) {
-                    return dispatch(self.unpublish({
-                        ...events[0],
-                        update_method: get(event, 'update_method')
-                    }))
-                        .then(() => {
-                            dispatch(hideModal());
-                            return Promise.resolve(events);
-                        });
-                }
-
-                dispatch(hideModal());
-                return Promise.resolve(events);
-            });
-    }
+const save = (event) => (
+    (dispatch, getState, {notify}) =>
+        dispatch(eventsApi.save(event))
 );
 
-const saveWithConfirmation = (event, {save = true, publish = false, unpublish = false} = {}) => (
-    (dispatch, getState, {notify}) => {
+const saveWithConfirmation = (event) => (
+    (dispatch, getState) => {
         const events = selectors.getEvents(getState());
         const originalEvent = get(events, event._id, {});
         const maxRecurringEvents = selectors.config.getMaxRecurrentEvents(getState());
 
         // If this is not from a recurring series, then simply publish this event
         if (!get(originalEvent, 'recurrence_id')) {
-            return dispatch(self.saveAndPublish(event, {save, publish, unpublish}))
-                .then((result) => Promise.resolve(result),
-                    (error) => {
-                        notify.error(
-                            getErrorMessage(error, 'Failed to save the Event!')
-                        );
-                    });
+            return dispatch(eventsApi.save(event));
         }
 
         return dispatch(eventsApi.query({
@@ -598,9 +520,6 @@ const saveWithConfirmation = (event, {save = true, publish = false, unpublish = 
                         eventDetail: {
                             ...event,
                             _recurring: relatedEvents || [event],
-                            _publish: publish,
-                            _unpublish: unpublish,
-                            _save: save,
                             _events: [],
                             _originalEvent: originalEvent,
                         },
@@ -611,36 +530,41 @@ const saveWithConfirmation = (event, {save = true, publish = false, unpublish = 
     }
 );
 
-const publishEvent = (event) => (
-    (dispatch, getState, {notify}) => (
-        dispatch(eventsApi.publishEvent(event))
-            .then((publishedEvent) => {
-                notify.success('The event(s) has been published');
-                dispatch(self.closeEventDetails());
-                return Promise.resolve(publishedEvent);
-            }, (error) => {
-                notify.error(
-                    getErrorMessage(error, 'Failed to publish the Event(s)!')
-                );
+const publishWithConfirmation = (event, publish) => (
+    (dispatch, getState) => {
+        const events = selectors.getEvents(getState());
+        const originalEvent = get(events, event._id, {});
+        const maxRecurringEvents = selectors.config.getMaxRecurrentEvents(getState());
 
-                return Promise.reject(error);
-            })
-    )
-);
+        // If this is not from a recurring series, then simply publish this event
+        if (!get(originalEvent, 'recurrence_id')) {
+            return dispatch(publish ?
+                eventsApi.publish(event) :
+                eventsApi.unpublish(event)
+            );
+        }
 
-const unpublish = (event) => (
-    (dispatch, getState, {notify}) => (
-        dispatch(eventsApi.unpublish(event))
-            .then((unpublishedEvent) => {
-                notify.success('The Event has been published');
-                return Promise.resolve(unpublishedEvent);
-            }, (error) => {
-                notify.error(
-                    getErrorMessage(error, 'Failed to unpublish the Event!')
-                );
-                return Promise.reject(error);
-            })
-    )
+        return dispatch(eventsApi.query({
+            recurrenceId: originalEvent.recurrence_id,
+            maxResults: maxRecurringEvents,
+            onlyFuture: false
+        }))
+            .then((relatedEvents) => (
+                dispatch(showModal({
+                    modalType: MODALS.ITEM_ACTIONS_MODAL,
+                    modalProps: {
+                        eventDetail: {
+                            ...event,
+                            _recurring: relatedEvents || [event],
+                            _events: [],
+                            _originalEvent: originalEvent,
+                            _publish: publish,
+                        },
+                        actionType: EVENTS.ITEM_ACTIONS.PUBLISH_EVENT.label,
+                    }
+                }))
+            ));
+    }
 );
 
 
@@ -728,20 +652,6 @@ const closeAdvancedSearch = () => (
     {type: EVENTS.ACTIONS.CLOSE_ADVANCED_SEARCH}
 );
 
-const openUnspikeModal = (events) => (
-    (dispatch) => {
-        let eventsToUnspike = Array.isArray(events) ? events : [events];
-
-        dispatch(showModal({
-            modalType: MODALS.CONFIRMATION,
-            modalProps: {
-                body: gettext(`Do you want to unspike these ${eventsToUnspike.length} event(s) ?`),
-                action: () => dispatch(self.unspike(eventsToUnspike)),
-            },
-        }));
-    }
-);
-
 const openEventDetails = checkPermission(
     _openEventDetails,
     PRIVILEGES.EVENT_MANAGEMENT,
@@ -796,11 +706,9 @@ const self = {
     openPostponeModal,
     _openActionModal,
     convertToRecurringEvent,
-    saveAndPublish,
     saveWithConfirmation,
+    save,
     receiveEventHistory,
-    publishEvent,
-    unpublish,
     loadMore,
     addToList,
     requestEvents,
@@ -808,6 +716,7 @@ const self = {
     duplicate,
     updateRepetitions,
     openRepetitionsModal,
+    publishWithConfirmation,
 };
 
 export default self;

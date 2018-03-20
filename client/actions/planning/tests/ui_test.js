@@ -3,7 +3,7 @@ import planningApi from '../api';
 import assignmentApi from '../../assignments/api';
 import {main, locks} from '../../';
 import sinon from 'sinon';
-import {PRIVILEGES, ASSIGNMENTS, MAIN} from '../../../constants';
+import {PRIVILEGES, ASSIGNMENTS, MAIN, WORKSPACE} from '../../../constants';
 import {getTestActionStore, restoreSinonStub, expectAccessDenied} from '../../../utils/testUtils';
 import moment from 'moment';
 
@@ -24,9 +24,7 @@ describe('actions.planning.ui', () => {
         sinon.stub(planningApi, 'fetch').callsFake(() => (Promise.resolve()));
         sinon.stub(planningApi, 'refetch').callsFake(() => (Promise.resolve()));
         sinon.stub(planningApi, 'save').callsFake((item) => (Promise.resolve(item)));
-        sinon.stub(planningApi, 'saveAndReloadCurrentAgenda').callsFake(
-            (item) => (Promise.resolve(item))
-        );
+        sinon.stub(planningApi, 'saveAndReloadCurrentAgenda').callsFake((item) => Promise.resolve(item));
         sinon.stub(planningApi, 'lock').callsFake((item) => (Promise.resolve(item)));
         sinon.stub(planningApi, 'unlock').callsFake(() => (Promise.resolve(data.plannings[0])));
         sinon.stub(planningUi, 'openEditor').callsFake((item) => (Promise.resolve(item)));
@@ -40,14 +38,9 @@ describe('actions.planning.ui', () => {
         sinon.stub(planningUi, 'addToList').callsFake(() => ({type: 'addToList'}));
         sinon.stub(planningUi, 'fetchToList').callsFake(() => (Promise.resolve()));
         sinon.stub(planningUi, 'loadMore').callsFake(() => (Promise.resolve()));
-        sinon.stub(planningApi, 'publish').callsFake(() => (Promise.resolve()));
-        sinon.stub(planningApi, 'unpublish').callsFake(() => (Promise.resolve()));
-        sinon.stub(planningApi, 'saveAndPublish').callsFake((item) => (Promise.resolve(item)));
-        sinon.stub(planningApi, 'saveAndUnpublish').callsFake(() => (Promise.resolve()));
         sinon.stub(planningUi, 'refetch').callsFake(() => (Promise.resolve()));
         sinon.stub(assignmentApi, 'link').callsFake(() => (Promise.resolve()));
         sinon.stub(planningUi, 'saveFromAuthoring').callsFake(() => (Promise.resolve()));
-        sinon.stub(planningUi, 'saveFromPlanning').callsFake(() => (Promise.resolve()));
 
         sinon.stub(main, 'closePreviewAndEditorForItems').callsFake(() => (Promise.resolve()));
         sinon.stub(main, 'openEditor').callsFake((item) => (Promise.resolve(item)));
@@ -63,10 +56,6 @@ describe('actions.planning.ui', () => {
         restoreSinonStub(planningApi.saveAndReloadCurrentAgenda);
         restoreSinonStub(planningApi.lock);
         restoreSinonStub(planningApi.unlock);
-        restoreSinonStub(planningApi.publish);
-        restoreSinonStub(planningApi.unpublish);
-        restoreSinonStub(planningApi.saveAndPublish);
-        restoreSinonStub(planningApi.saveAndUnpublish);
 
         restoreSinonStub(planningUi.openEditor);
         restoreSinonStub(planningUi._openEditor);
@@ -77,11 +66,9 @@ describe('actions.planning.ui', () => {
         restoreSinonStub(planningUi.setInList);
         restoreSinonStub(planningUi.addToList);
         restoreSinonStub(planningUi.fetchToList);
-        restoreSinonStub(planningUi.fetchMoreToList);
         restoreSinonStub(planningUi.refetch);
         restoreSinonStub(assignmentApi.link);
         restoreSinonStub(planningUi.saveFromAuthoring);
-        restoreSinonStub(planningUi.saveFromPlanning);
         restoreSinonStub(planningUi.loadMore);
 
         restoreSinonStub(main.closePreviewAndEditorForItems);
@@ -188,39 +175,6 @@ describe('actions.planning.ui', () => {
         });
     });
 
-    describe('save', () => {
-        it('saves and notifies end user', (done) => (
-            store.test(done, planningUi.save(data.plannings[1]))
-                .then((item) => {
-                    expect(item).toEqual(data.plannings[1]);
-
-                    expect(planningApi.save.callCount).toBe(1);
-                    expect(planningApi.save.args[0]).toEqual([data.plannings[1]]);
-
-                    expect(services.notify.success.callCount).toBe(1);
-                    expect(services.notify.success.args[0]).toEqual([
-                        'The planning item has been saved.',
-                    ]);
-
-                    done();
-                })
-        ));
-
-        it('on fail notifies the end user', (done) => {
-            restoreSinonStub(planningApi.save);
-            sinon.stub(planningApi, 'save').callsFake(() => (Promise.reject(errorMessage)));
-            return store.test(done, planningUi.save(data.plannings[1]))
-                .then(() => { /* no-op */ }, (error) => {
-                    expect(error).toEqual(errorMessage);
-
-                    expect(services.notify.error.callCount).toBe(1);
-                    expect(services.notify.error.args[0]).toEqual(['Failed!']);
-
-                    done();
-                });
-        });
-    });
-
     describe('saveAndReloadCurrentAgenda', () => {
         it('saves and reloads planning items', (done) => (
             store.test(done, planningUi.saveAndReloadCurrentAgenda(data.plannings[1]))
@@ -230,11 +184,6 @@ describe('actions.planning.ui', () => {
                     expect(planningApi.saveAndReloadCurrentAgenda.callCount).toBe(1);
                     expect(planningApi.saveAndReloadCurrentAgenda.args[0]).toEqual([
                         data.plannings[1],
-                    ]);
-
-                    expect(services.notify.success.callCount).toBe(1);
-                    expect(services.notify.success.args[0]).toEqual([
-                        'The Planning item has been saved.',
                     ]);
 
                     done();
@@ -250,9 +199,6 @@ describe('actions.planning.ui', () => {
             return store.test(done, planningUi.saveAndReloadCurrentAgenda(data.plannings[1]))
                 .then(() => { /* no-op */ }, (error) => {
                     expect(error).toEqual(errorMessage);
-
-                    expect(services.notify.error.callCount).toBe(1);
-                    expect(services.notify.error.args[0]).toEqual(['Failed!']);
 
                     done();
                 });
@@ -532,135 +478,6 @@ describe('actions.planning.ui', () => {
         });
     });
 
-    describe('ui.publish', () => {
-        it('ui.publish notifies user on successful publish', (done) => (
-            store.test(done, planningUi.publish(data.plannings[1]))
-                .then(() => {
-                    expect(planningApi.publish.callCount).toBe(1);
-                    expect(planningApi.publish.args[0]).toEqual([data.plannings[1]]);
-
-                    expect(services.notify.success.callCount).toBe(1);
-                    expect(services.notify.success.args[0]).toEqual(['Planning item published!']);
-                    expect(services.notify.error.callCount).toBe(0);
-
-                    done();
-                })
-        ));
-
-        it('ui.publish notifies user on failure to publish', (done) => {
-            restoreSinonStub(planningApi.publish);
-            sinon.stub(planningApi, 'publish').callsFake(() => (Promise.reject(errorMessage)));
-            store.test(done, planningUi.publish(data.plannings[1]))
-                .then(() => {
-                    expect(planningApi.publish.callCount).toBe(1);
-
-                    expect(services.notify.success.callCount).toBe(0);
-                    expect(services.notify.error.callCount).toBe(1);
-                    expect(services.notify.error.args[0]).toEqual(['Failed!']);
-
-                    done();
-                });
-        });
-    });
-
-    describe('ui.unpublish', () => {
-        it('ui.unpublish notifies user on successful unpublish', (done) => (
-            store.test(done, planningUi.unpublish(data.plannings[1]))
-                .then(() => {
-                    expect(planningApi.unpublish.callCount).toBe(1);
-                    expect(planningApi.unpublish.args[0]).toEqual([data.plannings[1]]);
-
-                    expect(services.notify.success.callCount).toBe(1);
-                    expect(services.notify.success.args[0]).toEqual(['Planning item unpublished!']);
-                    expect(services.notify.error.callCount).toBe(0);
-
-                    done();
-                })
-        ));
-
-        it('ui.unpublish notifies user on failure to unpublish', (done) => {
-            restoreSinonStub(planningApi.unpublish);
-            sinon.stub(planningApi, 'unpublish').callsFake(() => (Promise.reject(errorMessage)));
-            store.test(done, planningUi.unpublish(data.plannings[1]))
-                .then(() => {
-                    expect(planningApi.unpublish.callCount).toBe(1);
-
-                    expect(services.notify.success.callCount).toBe(0);
-                    expect(services.notify.error.callCount).toBe(1);
-                    expect(services.notify.error.args[0]).toEqual(['Failed!']);
-
-                    done();
-                });
-        });
-    });
-
-    describe('ui.saveAndPublish', () => {
-        it('ui.saveAndPublish notifies user on successful save and publish', (done) => (
-            store.test(done, planningUi.saveAndPublish(data.plannings[1]))
-                .then(() => {
-                    expect(planningApi.saveAndPublish.callCount).toBe(1);
-                    expect(planningApi.saveAndPublish.args[0]).toEqual([data.plannings[1]]);
-
-                    expect(services.notify.success.callCount).toBe(1);
-                    expect(services.notify.success.args[0]).toEqual(['Planning item published!']);
-                    expect(services.notify.error.callCount).toBe(0);
-
-                    done();
-                })
-        ));
-
-        it('ui.saveAndPublish notifies user on failulre to save and publish', (done) => {
-            restoreSinonStub(planningApi.saveAndPublish);
-            sinon.stub(planningApi, 'saveAndPublish').returns(Promise.reject(errorMessage));
-
-            store.test(done, planningUi.saveAndPublish(data.plannings[1]))
-                .then(null, (error) => {
-                    expect(error).toEqual(errorMessage);
-
-                    expect(planningApi.saveAndPublish.callCount).toBe(1);
-
-                    expect(services.notify.success.callCount).toBe(0);
-                    expect(services.notify.error.callCount).toBe(1);
-                    expect(services.notify.error.args[0]).toEqual(['Failed!']);
-
-                    done();
-                });
-        });
-    });
-
-    describe('ui.saveAndUnpublish', () => {
-        it('ui.saveAndUnpublish notifies user on successful save and unpublish', (done) => (
-            store.test(done, planningUi.saveAndUnpublish(data.plannings[1]))
-                .then(() => {
-                    expect(planningApi.saveAndUnpublish.callCount).toBe(1);
-                    expect(planningApi.saveAndUnpublish.args[0]).toEqual([data.plannings[1]]);
-
-                    expect(services.notify.success.callCount).toBe(1);
-                    expect(services.notify.success.args[0]).toEqual(['Planning item unpublished!']);
-                    expect(services.notify.error.callCount).toBe(0);
-
-                    done();
-                })
-        ));
-
-        it('ui.saveAndUnpublish notifies user on failulre to save and publish', (done) => {
-            restoreSinonStub(planningApi.saveAndUnpublish);
-            sinon.stub(planningApi, 'saveAndUnpublish').callsFake(
-                () => (Promise.reject(errorMessage))
-            );
-            store.test(done, planningUi.saveAndUnpublish(data.plannings[1]))
-                .then(() => {
-                    expect(planningApi.saveAndUnpublish.callCount).toBe(1);
-
-                    expect(services.notify.success.callCount).toBe(0);
-                    expect(services.notify.error.callCount).toBe(1);
-                    expect(services.notify.error.args[0]).toEqual(['Failed!']);
-
-                    done();
-                });
-        });
-    });
-
     describe('onAddCoverageClick', () => {
         const newsItem = {
             _id: 'news1',
@@ -888,108 +705,23 @@ describe('actions.planning.ui', () => {
         });
     });
 
-    describe('onPlanningFormSave', () => {
-        it('calls saveFromPlanning if in the Planning UI', () => {
-            store.dispatch(planningUi.onPlanningFormSave(
-                data.plannings[0],
-                {
-                    save: true,
-                    publish: true,
-                    unpublish: false,
-                }
-            ));
+    describe('save', () => {
+        it('calls saveAndReloadCurrentAgenda if in the Planning UI', () => {
+            sinon.stub(planningUi, 'saveAndReloadCurrentAgenda').callsFake(() => (Promise.resolve()));
+            store.dispatch(planningUi.save(data.plannings[0]));
 
-            expect(planningUi.saveFromPlanning.callCount).toBe(1);
-            expect(planningUi.saveFromPlanning.args[0]).toEqual([
-                data.plannings[0],
-                {
-                    save: true,
-                    publish: true,
-                    unpublish: false,
-                },
-            ]);
-        });
-
-        it('calls saveFromAuthoring if in MODALS.ADD_TO_PLANNING', () => {
-            store.initialState.modal = {modalType: 'ADD_TO_PLANNING'};
-            store.dispatch(planningUi.onPlanningFormSave(
-                data.plannings[0],
-                {
-                    save: true,
-                    publish: true,
-                    unpublish: false,
-                }
-            ));
-
-            expect(planningUi.saveFromAuthoring.callCount).toBe(1);
-            expect(planningUi.saveFromAuthoring.args[0]).toEqual([
-                data.plannings[0],
-                {
-                    publish: true,
-                    unpublish: false,
-                },
-            ]);
-        });
-    });
-
-    describe('saveFromPlanning', () => {
-        beforeEach(() => {
-            restoreSinonStub(planningUi.saveFromPlanning);
-            sinon.stub(planningUi, 'saveAndPublish');
-            sinon.stub(planningUi, 'saveAndUnpublish');
-            sinon.stub(planningUi, 'saveAndReloadCurrentAgenda');
-            sinon.stub(planningUi, 'publish');
-            sinon.stub(planningUi, 'unpublish');
-        });
-
-        afterEach(() => {
-            restoreSinonStub(planningUi.saveAndPublish);
-            restoreSinonStub(planningUi.saveAndUnpublish);
-            restoreSinonStub(planningUi.saveAndReloadCurrentAgenda);
-            restoreSinonStub(planningUi.publish);
-            restoreSinonStub(planningUi.unpublish);
-        });
-
-        it('calls appropriate save method', () => {
-            store.dispatch(planningUi.saveFromPlanning(data.plannings[0], {
-                save: true,
-                publish: true,
-                unpublish: false,
-            }));
-            expect(planningUi.saveAndPublish.callCount).toBe(1);
-            expect(planningUi.saveAndPublish.args[0]).toEqual([data.plannings[0]]);
-
-            store.dispatch(planningUi.saveFromPlanning(data.plannings[0], {
-                save: true,
-                publish: false,
-                unpublish: true,
-            }));
-            expect(planningUi.saveAndUnpublish.callCount).toBe(1);
-            expect(planningUi.saveAndUnpublish.args[0]).toEqual([data.plannings[0]]);
-
-            store.dispatch(planningUi.saveFromPlanning(data.plannings[0], {
-                save: true,
-                publish: false,
-                unpublish: false,
-            }));
             expect(planningUi.saveAndReloadCurrentAgenda.callCount).toBe(1);
             expect(planningUi.saveAndReloadCurrentAgenda.args[0]).toEqual([data.plannings[0]]);
 
-            store.dispatch(planningUi.saveFromPlanning(data.plannings[0], {
-                save: false,
-                publish: true,
-                unpublish: false,
-            }));
-            expect(planningUi.publish.callCount).toBe(1);
-            expect(planningUi.publish.args[0]).toEqual([data.plannings[0]]);
+            restoreSinonStub(planningUi.saveAndReloadCurrentAgenda);
+        });
 
-            store.dispatch(planningUi.saveFromPlanning(data.plannings[0], {
-                save: false,
-                publish: false,
-                unpublish: true,
-            }));
-            expect(planningUi.unpublish.callCount).toBe(1);
-            expect(planningUi.unpublish.args[0]).toEqual([data.plannings[0]]);
+        it('calls saveFromAuthoring if in AUTHORING workspace', () => {
+            store.initialState.workspace.currentWorkspace = WORKSPACE.AUTHORING;
+            store.dispatch(planningUi.save(data.plannings[0]));
+
+            expect(planningUi.saveFromAuthoring.callCount).toBe(1);
+            expect(planningUi.saveFromAuthoring.args[0][0]).toEqual(data.plannings[0]);
         });
     });
 
@@ -1021,39 +753,17 @@ describe('actions.planning.ui', () => {
             data.plannings[0].coverages.pop();
         });
 
-        it('calls either save or saveAndPublish based on args', () => {
+        it('calls save', () => {
             store.dispatch(planningUi.saveFromAuthoring(data.plannings[0], {publish: false, unpublish: false}));
             expect(planningApi.save.callCount).toBe(1);
             expect(planningApi.save.args[0]).toEqual([data.plannings[0]]);
-
-            store.dispatch(planningUi.saveFromAuthoring(data.plannings[0], {publish: true, unpublish: false}));
-            expect(planningApi.saveAndPublish.callCount).toBe(1);
-            expect(planningApi.saveAndPublish.args[0]).toEqual([data.plannings[0]]);
         });
 
         it('notifies user if save fails', (done) => {
             restoreSinonStub(planningApi.save);
-            sinon.stub(planningApi, 'save').callsFake(() => (Promise.reject(errorMessage)));
+            sinon.stub(planningApi, 'save').callsFake(() => Promise.reject(errorMessage));
 
-            store.test(done, planningUi.saveFromAuthoring(data.plannings[0], {publish: false, unpublish: false}))
-                .then(() => { /* no-op */ }, () => {
-                    expect(services.notify.error.callCount).toBe(1);
-                    expect(services.notify.error.args[0]).toEqual(['Failed!']);
-
-                    expect(modalProps.$scope.resolve.callCount).toBe(0);
-                    expect(modalProps.$scope.reject.callCount).toBe(1);
-
-                    done();
-                });
-        });
-
-        it('notifies user if saveAndPublish fails', (done) => {
-            restoreSinonStub(planningApi.saveAndPublish);
-            sinon.stub(planningApi, 'saveAndPublish').callsFake(
-                () => (Promise.reject(errorMessage))
-            );
-
-            store.test(done, planningUi.saveFromAuthoring(data.plannings[0], {publish: true, unpublish: false}))
+            store.test(done, planningUi.saveFromAuthoring(data.plannings[0]))
                 .then(() => { /* no-op */ }, () => {
                     expect(services.notify.error.callCount).toBe(1);
                     expect(services.notify.error.args[0]).toEqual(['Failed!']);

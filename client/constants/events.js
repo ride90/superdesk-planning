@@ -3,7 +3,6 @@ import {gettext} from '../utils/gettext';
 export const EVENTS = {
     ACTIONS: {
         SPIKE_EVENT: 'SPIKE_EVENT',
-        SPIKE_RECURRING_EVENTS: 'SPIKE_RECURRING_EVENTS',
         UNSPIKE_EVENT: 'UNSPIKE_EVENT',
         REQUEST_EVENTS: 'REQUEST_EVENTS',
         SET_EVENTS_LIST: 'SET_EVENTS_LIST',
@@ -89,6 +88,7 @@ export const EVENTS = {
             actionName: 'onUpdateEventRepetitions',
             lock_action: 'update_repetitions'
         },
+        PUBLISH_EVENT: {label: gettext('Publish')}
     },
     DEFAULT_VALUE: (occurStatuses) => ({
         _type: 'events',

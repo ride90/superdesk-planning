@@ -16,7 +16,6 @@ export class UpdateRecurringEventsComponent extends React.Component {
         this.state = {
             eventUpdateMethod: EventUpdateMethods[0],
             relatedEvents: [],
-            submitting: false,
         };
 
         this.onEventUpdateMethodChange = this.onEventUpdateMethodChange.bind(this);
@@ -45,19 +44,15 @@ export class UpdateRecurringEventsComponent extends React.Component {
     }
 
     submit() {
-        // Modal closes after submit. So, reseting submitting is not required
-        this.setState({submitting: true});
-
-        this.props.onSubmit({
+        return this.props.onSubmit({
             ...this.props.initialValues,
             update_method: this.state.eventUpdateMethod,
         });
     }
 
     render() {
-        const {initialValues, dateFormat, timeFormat} = this.props;
+        const {initialValues, dateFormat, timeFormat, submitting} = this.props;
         const isRecurring = !!initialValues.recurrence_id;
-        const updateMethodLabel = gettext('Update all recurring events or just this one?');
         const eventsInUse = this.state.relatedEvents.filter((e) => (
             get(e, 'planning_ids.length', 0) > 0 || 'pubstatus' in e
         ));
@@ -97,9 +92,9 @@ export class UpdateRecurringEventsComponent extends React.Component {
                     value={this.state.eventUpdateMethod}
                     onChange={this.onEventUpdateMethodChange}
                     showMethodSelection={isRecurring}
-                    updateMethodLabel={updateMethodLabel}
+                    updateMethodLabel={gettext('Update all recurring events or just this one?')}
                     showSpace={false}
-                    readOnly={this.state.submitting}
+                    readOnly={submitting}
                     action="spike" />
             </div>
         );
@@ -121,15 +116,7 @@ const mapStateToProps = (state) => ({
 });
 
 const mapDispatchToProps = (dispatch) => ({
-    /** `handleSubmit` will call `onSubmit` after validation */
-    onSubmit: (event) => dispatch(actions.events.ui.saveAndPublish(
-        event,
-        {
-            save: get(event, '_save', true),
-            publish: get(event, '_publish', false),
-            unpublish: get(event, '_unpublish', false),
-        }
-    )),
+    onSubmit: (event) => dispatch(actions.main.save(event, false))
 });
 
 export const UpdateRecurringEventsForm = connect(

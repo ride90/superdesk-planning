@@ -17,7 +17,7 @@ from apps.auth import get_user_id
 from apps.archive.common import get_auth
 from flask import request
 
-from planning.common import UPDATE_SINGLE, WORKFLOW_STATE, get_max_recurrent_events
+from planning.common import UPDATE_SINGLE, WORKFLOW_STATE, get_max_recurrent_events, update_published_item
 from planning.item_lock import LOCK_USER, LOCK_SESSION, LOCK_ACTION
 
 from eve.utils import config
@@ -111,6 +111,8 @@ class EventsBaseService(BaseService):
                 updates,
                 original
             )
+
+        update_published_item(updates, original)
 
     def update_single_event(self, updates, original):
         pass
@@ -208,7 +210,7 @@ class EventsBaseService(BaseService):
             for doc in results.docs:
                 yield doc
 
-    def get_recurring_timeline(self, selected, include_postponed=False):
+    def get_recurring_timeline(self, selected, spiked=False, rescheduled=False, cancelled=False, postponed=False):
         """Utility method to get all events in the series
 
         This splits up the series of events into 3 separate arrays.
@@ -216,7 +218,16 @@ class EventsBaseService(BaseService):
         Past: utcnow() < event.dates.start < selected.dates.start
         Future: event.dates.start > selected.dates.start
         """
-        selected_start = selected.get('dates', {}).get('start', utcnow())
+        excluded_states = []
+
+        if not spiked:
+            excluded_states.append(WORKFLOW_STATE.SPIKED)
+        if not rescheduled:
+            excluded_states.append(WORKFLOW_STATE.RESCHEDULED)
+        if not cancelled:
+            excluded_states.append(WORKFLOW_STATE.CANCELLED)
+        if not postponed:
+            excluded_states.append(WORKFLOW_STATE.POSTPONED)
 
         query = {
             'query': {
@@ -226,24 +237,19 @@ class EventsBaseService(BaseService):
                     ],
                     'must_not': [
                         {'term': {'_id': selected[config.ID_FIELD]}},
-                        {'terms': {
-                            'state': [
-                                WORKFLOW_STATE.SPIKED,
-                                WORKFLOW_STATE.RESCHEDULED,
-                                WORKFLOW_STATE.CANCELLED
-                            ] if include_postponed else [
-                                WORKFLOW_STATE.SPIKED,
-                                WORKFLOW_STATE.RESCHEDULED,
-                                WORKFLOW_STATE.CANCELLED,
-                                WORKFLOW_STATE.POSTPONED
-                            ]
-                        }}
+                        {'terms': {'state': excluded_states}}
                     ]
                 }
             },
             'sort': [{'dates.start': 'asc'}],
             'size': get_max_recurrent_events()
         }
+
+        selected_start = selected.get('dates', {}).get('start', utcnow())
+
+        # Make sure we are working with a datetime instance
+        if not isinstance(selected_start, datetime):
+            selected_start = datetime.strptime(selected_start, '%Y-%m-%dT%H:%M:%S%z')
 
         historic = []
         past = []
