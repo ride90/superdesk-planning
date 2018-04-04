@@ -8,6 +8,8 @@ import {
     ASSIGNMENTS,
     PUBLISHED_STATE,
     COVERAGES,
+    WORKSPACE,
+    ITEM_TYPE,
 } from '../constants/index';
 import {get, isNil, uniq, sortBy, isEmpty, cloneDeep} from 'lodash';
 import {
@@ -22,7 +24,9 @@ import {
     isEmptyActions,
     isDateInRange,
     gettext,
+    getEnabledAgendas,
 } from './index';
+import {stripHtmlRaw} from 'superdesk-core/scripts/apps/authoring/authoring/helpers';
 
 const isCoverageAssigned = (coverage) => !!get(coverage, 'assigned_to.desk');
 
@@ -50,6 +54,15 @@ const canUnpublishPlanning = (planning, event, session, privileges, locks) => (
 const canEditPlanning = (planning, event, session, privileges, locks) => (
     !!privileges[PRIVILEGES.PLANNING_MANAGEMENT] &&
         !isPlanningLockRestricted(planning, session, locks) &&
+        !isItemSpiked(planning) &&
+        !isItemSpiked(event) &&
+        !isItemCancelled(planning) &&
+        !isItemRescheduled(planning)
+);
+
+const canAssignAgenda = (planning, event, privileges, locks) => (
+    !!privileges[PRIVILEGES.PLANNING_MANAGEMENT] &&
+        !isPlanningLocked(planning, locks) &&
         !isItemSpiked(planning) &&
         !isItemSpiked(event) &&
         !isItemCancelled(planning) &&
@@ -99,6 +112,11 @@ const canCancelAllCoverage = (planning, event = null, session, privileges, locks
         canCancelAllCoverageForPlanning(planning)
 );
 
+const canAddAsEvent = (planning, event = null, session, privileges, locks) => (
+    isPlanAdHoc(planning) &&
+        !isPlanningLocked(planning, locks)
+);
+
 const isCoverageCancelled = (coverage) =>
     (get(coverage, 'workflow_status') === WORKFLOW_STATE.CANCELLED);
 
@@ -114,7 +132,7 @@ const canCancelAllCoverageForPlanning = (planning) => (
 const isPlanningLocked = (plan, locks) =>
     !isNil(plan) && (
         plan._id in locks.planning ||
-        get(plan, 'event_item') in locks.events ||
+        get(plan, 'event_item') in locks.event ||
         get(plan, 'recurrence_id') in locks.recurring
     );
 
@@ -174,6 +192,12 @@ export const getPlanningItemActions = (plan, event = null, session, privileges, 
             canCancelPlanning(plan, event, session, privileges, locks),
         [PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.label]: () =>
             canCancelAllCoverage(plan, event, session, privileges, locks),
+        [PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.label]: () =>
+            canAddAsEvent(plan, event, session, privileges, locks),
+        [PLANNING.ITEM_ACTIONS.EDIT_PLANNING.label]: () =>
+            canEditPlanning(plan, event, session, privileges, locks),
+        [PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.label]: () =>
+            canAssignAgenda(plan, event, privileges, locks),
         [EVENTS.ITEM_ACTIONS.CANCEL_EVENT.label]: () =>
             !isPlanAdHoc(plan) && eventUtils.canCancelEvent(event, session, privileges, locks),
         [EVENTS.ITEM_ACTIONS.UPDATE_TIME.label]: () =>
@@ -224,11 +248,20 @@ export const getPlanningItemActions = (plan, event = null, session, privileges, 
     return itemActions;
 };
 
-const getPlanningActions = (item, event, session, privileges, lockedItems, callBacks) => {
+const getPlanningActions = ({
+    item,
+    event,
+    session,
+    privileges,
+    lockedItems,
+    agendas,
+    callBacks}) => {
     if (!get(item, '_id')) {
         return [];
     }
 
+    let enabledAgendas;
+    let agendaCallBacks = [];
     let actions = [];
     let eventActions = [GENERIC_ITEM_ACTIONS.DIVIDER];
 
@@ -266,6 +299,36 @@ const getPlanningActions = (item, event, session, privileges, lockedItems, callB
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE,
                 callback: callBacks[callBackName].bind(null, item)
+            });
+            break;
+
+        case PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName:
+            actions.push({
+                ...PLANNING.ITEM_ACTIONS.ADD_AS_EVENT,
+                callback: callBacks[callBackName].bind(null, item)
+            });
+            break;
+
+        case PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName:
+            actions.push({
+                ...PLANNING.ITEM_ACTIONS.EDIT_PLANNING,
+                callback: callBacks[callBackName].bind(null, item)
+            });
+            break;
+
+        case PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.actionName:
+            enabledAgendas = getEnabledAgendas(agendas);
+            enabledAgendas.forEach((agenda) => {
+                agendaCallBacks.push({
+                    label: agenda.name,
+                    inactive: get(item, 'agendas', []).includes(agenda._id),
+                    callback: callBacks[callBackName].bind(null, item, agenda)
+                });
+            });
+
+            agendaCallBacks.length > 0 && actions.push({
+                ...PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA,
+                callback: agendaCallBacks
             });
             break;
 
@@ -351,10 +414,35 @@ const canEditCoverage = (coverage) => (
     get(coverage, 'assigned_to.state') !== ASSIGNMENTS.WORKFLOW_STATE.COMPLETED
 );
 
+const createNewPlanningFromNewsItem = (addNewsItemToPlanning, newsCoverageStatus, desk, user, contentTypes) => {
+    const newCoverage = self.createCoverageFromNewsItem(addNewsItemToPlanning, newsCoverageStatus,
+        desk, user, contentTypes);
+
+    let newPlanning = {
+        type: ITEM_TYPE.PLANNING,
+        slugline: addNewsItemToPlanning.slugline,
+        planning_date: moment(),
+        ednote: get(addNewsItemToPlanning, 'ednote'),
+        subject: get(addNewsItemToPlanning, 'subject'),
+        anpa_category: get(addNewsItemToPlanning, 'anpa_category'),
+        urgency: get(addNewsItemToPlanning, 'urgency'),
+        description_text: stripHtmlRaw(
+            get(addNewsItemToPlanning, 'abstract', get(addNewsItemToPlanning, 'headline', ''))
+        ),
+        coverages: [newCoverage],
+    };
+
+    if (get(addNewsItemToPlanning, 'flags.marked_for_not_publication')) {
+        newPlanning.flags = {marked_for_not_publication: true};
+    }
+
+    return newPlanning;
+};
+
 const createCoverageFromNewsItem = (addNewsItemToPlanning, newsCoverageStatus, desk, user, contentTypes) => {
     let newCoverage = COVERAGES.DEFAULT_VALUE(newsCoverageStatus);
 
-    newCoverage.workflow_status = WORKFLOW_STATE.ACTIVE;
+    newCoverage.workflow_status = COVERAGES.WORKFLOW_STATE.ACTIVE;
 
     // Add fields from news item to the coverage
     const contentType = contentTypes.find(
@@ -373,8 +461,11 @@ const createCoverageFromNewsItem = (addNewsItemToPlanning, newsCoverageStatus, d
     }
 
     // Add assignment to coverage
-    if (get(addNewsItemToPlanning, 'state') === 'published') {
-        newCoverage.planning.scheduled = addNewsItemToPlanning._updated;
+    if ([WORKFLOW_STATE.SCHEDULED, 'published'].includes(addNewsItemToPlanning.state)) {
+        newCoverage.planning.scheduled = addNewsItemToPlanning.state === 'published' ?
+            moment(addNewsItemToPlanning.versioncreated) :
+            moment(get(addNewsItemToPlanning, 'schedule_settings.utc_publish_schedule'));
+
         newCoverage.assigned_to = {
             desk: addNewsItemToPlanning.task.desk,
             user: addNewsItemToPlanning.task.user,
@@ -392,12 +483,27 @@ const createCoverageFromNewsItem = (addNewsItemToPlanning, newsCoverageStatus, d
 };
 
 const getCoverageReadOnlyFields = (
+    coverage,
     readOnly,
     newsCoverageStatus,
-    hasAssignment,
-    existingCoverage,
-    assignmentState
+    currentWorkspace,
+    addNewsItemToPlanning
 ) => {
+    if (currentWorkspace === WORKSPACE.AUTHORING) {
+        // if newsItem is published, schedule is readOnly
+        return {
+            slugline: true,
+            ednote: true,
+            keyword: true,
+            internal_note: false,
+            g2_content_type: true,
+            genre: true,
+            newsCoverageStatus: true,
+            scheduled: get(addNewsItemToPlanning, 'state') === 'published'
+        };
+    }
+
+    const hasAssignment = !!get(coverage, 'assigned_to.assignment_id');
     const isCancelled = get(newsCoverageStatus, 'qcode') ===
         PLANNING.NEWS_COVERAGE_CANCELLED_STATUS.qcode;
 
@@ -405,7 +511,7 @@ const getCoverageReadOnlyFields = (
     let state = null;
 
     if (hasAssignment) {
-        state = assignmentState;
+        state = get(coverage, 'assigned_to.state');
     } else if (isCancelled) {
         state = ASSIGNMENTS.WORKFLOW_STATE.CANCELLED;
     }
@@ -551,7 +657,7 @@ const getCoverageIcon = (type) => {
 const getCoverageIconColor = (coverage) => {
     if (get(coverage, 'assigned_to.state') === ASSIGNMENTS.WORKFLOW_STATE.COMPLETED) {
         return 'icon--green';
-    } else if (isCoverageDraft(coverage) || get(coverage, 'workflow_status') === WORKFLOW_STATE.ACTIVE) {
+    } else if (isCoverageDraft(coverage) || get(coverage, 'workflow_status') === COVERAGES.WORKFLOW_STATE.ACTIVE) {
         return 'icon--red';
     } else if (isCoverageCancelled(coverage)) {
         // Cancelled
@@ -575,7 +681,7 @@ const getCoverageWorkflowIcon = (coverage) => {
     case WORKFLOW_STATE.DRAFT:
         return 'icon-assign';
 
-    case WORKFLOW_STATE.ACTIVE:
+    case COVERAGES.WORKFLOW_STATE.ACTIVE:
         return 'icon-user';
     }
 };
@@ -604,6 +710,7 @@ const self = {
     getPlanningActions,
     isNotForPublication,
     getPlanningByDate,
+    createNewPlanningFromNewsItem,
     createCoverageFromNewsItem,
     isLockedForAddToPlanning,
     isCoverageAssigned,

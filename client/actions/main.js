@@ -79,7 +79,10 @@ const unlockAndCancel = (item) => (
             selectors.getSessionDetails(state),
             selectors.general.currentWorkspace(state))) {
             dispatch(locks.unlock(item));
+        } else if (get(item, '_planning_item')) {
+            dispatch(planningApi.unlock({_id: item._planning_item}));
         }
+
         dispatch(self.closeEditor());
         return Promise.resolve();
     }
@@ -117,7 +120,9 @@ const save = (item, withConfirmation = true) => (
             promise = dispatch(planningUi.save(item));
             break;
         default:
-            promise = Promise.reject(gettext('Failed to save, could not find the item type!'));
+            promise = Promise.reject(
+                gettext('Failed to save, could not find the item {{itemType}}!', {itemType: itemType})
+            );
             break;
         }
 
@@ -421,7 +426,7 @@ const loadMore = (filterType) => (
  * @param {Object} currentSearch - Search params from advanced search
  * @return {Object} - returns Promise
  */
-const search = (fulltext, currentSearch) => (
+const search = (fulltext, currentSearch = undefined) => (
     (dispatch, getState, {notify}) => {
         let filterType = activeFilter(getState());
 
@@ -500,7 +505,7 @@ const setUnsetLoadingIndicator = (value = false) => ({
 
 /**
  * Action to open the editor and update the URL
- * @param {object} item - The item to open. Must have _id and _type attributes
+ * @param {object} item - The item to open. Must have _id and type attributes
  */
 const openEditor = (item) => (
     (dispatch, getState, {$timeout, $location}) => {
@@ -510,7 +515,7 @@ const openEditor = (item) => (
         });
 
         // Update the URL
-        $timeout(() => $location.search('edit', JSON.stringify({id: item._id, type: item._type})));
+        $timeout(() => $location.search('edit', JSON.stringify({id: item._id, type: item.type})));
     }
 );
 
@@ -528,7 +533,7 @@ const closeEditor = () => (
 
 /**
  * Action to open the preview panel and update the URL
- * @param {object} item - The item to open. Must have _id and _type attributes
+ * @param {object} item - The item to open. Must have _id and type attributes
  */
 const openPreview = (item) => (
     (dispatch, getState, {$timeout, $location}) => {
@@ -543,12 +548,12 @@ const openPreview = (item) => (
             type: MAIN.ACTIONS.SET_PREVIEW_ITEM,
             payload: {
                 itemId: item._id,
-                itemType: item._type
+                itemType: item.type
             }
         });
 
         // Update the URL
-        $timeout(() => $location.search('preview', JSON.stringify({id: item._id, type: item._type})));
+        $timeout(() => $location.search('preview', JSON.stringify({id: item._id, type: item.type})));
     }
 );
 
@@ -651,12 +656,12 @@ const openFromURLOrRedux = (action) => (
             if (action === MAIN.PREVIEW) {
                 dispatch(self.openPreview({
                     _id: item.id,
-                    _type: item.type
+                    type: item.type
                 }));
             } else if (action === MAIN.EDIT) {
                 dispatch(self.openEditor({
                     _id: item.id,
-                    _type: item.type
+                    type: item.type
                 }));
             }
         } else {

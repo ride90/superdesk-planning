@@ -5,7 +5,7 @@ import {registerNotifications} from '../utils';
 import * as actions from '../actions';
 import {locks} from '../actions';
 import {WORKSPACE} from '../constants';
-import {PlanningApp} from '../planning';
+import {PlanningApp} from '../apps';
 
 PlanningController.$inject = [
     '$element',
@@ -16,7 +16,8 @@ PlanningController.$inject = [
     'superdeskFlags',
     '$route',
     'pageTitle',
-    'gettext'
+    'gettext',
+    'preferencesService'
 ];
 export function PlanningController(
     $element,
@@ -27,9 +28,16 @@ export function PlanningController(
     superdeskFlags,
     $route,
     pageTitle,
-    gettext
+    gettext,
+    preferencesService
 ) {
+    const prevFlags = {
+        workqueue: superdeskFlags.flags.workqueue,
+        authoring: superdeskFlags.flags.authoring
+    };
+
     pageTitle.setUrl(gettext('Planning'));
+
     sdPlanningStore.getStore()
         .then((store) => {
             store.dispatch(actions.initStore(WORKSPACE.PLANNING));
@@ -39,22 +47,29 @@ export function PlanningController(
                 data: store.dispatch(actions.main.filter()),
                 locks: store.dispatch(locks.loadAllLocks()),
                 agendas: store.dispatch(actions.fetchAgendas()),
+                userPreferences: preferencesService.get()
             })
-                .then(() => {
+                .then((result) => {
                     // Load the current items that are currently open for Preview/Editing
                     store.dispatch(actions.main.openFromURLOrRedux('edit'));
                     store.dispatch(actions.main.openFromURLOrRedux('preview'));
+                    store.dispatch(actions.users.setUserPreferences(result.userPreferences || {}));
 
                     $scope.$on('$destroy', () => {
                         // Unmount the React application
                         ReactDOM.unmountComponentAtNode($element.get(0));
                         store.dispatch(actions.resetStore());
+                        superdeskFlags.flags.workqueue = prevFlags.workqueue;
+                        superdeskFlags.flags.authoring = prevFlags.authoring;
                     });
 
                     $scope.$watch(
                         () => $route.current,
                         (route) => {
-                            superdeskFlags.flags.workqueue = !route.href.startsWith('/planning');
+                            if (route.href.startsWith('/planning')) {
+                                superdeskFlags.flags.workqueue = false;
+                                superdeskFlags.flags.authoring = false;
+                            }
                         }
                     );
 

@@ -12,6 +12,8 @@ import {
     ITEM_TYPE,
     GENERIC_ITEM_ACTIONS,
     WORKSPACE,
+    MAIN,
+    SPIKED_STATE,
 } from '../constants/index';
 import * as testData from './testData';
 import {gettext, gettextCatalog} from './gettext';
@@ -26,6 +28,7 @@ export {default as eventUtils} from './events';
 export {default as uiUtils} from './ui';
 export {default as assignmentUtils} from './assignments';
 export {default as stringUtils} from './strings';
+export {default as actionUtils} from './actions';
 export {gettext, gettextCatalog};
 export {lockUtils};
 export {planningUtils};
@@ -523,7 +526,7 @@ export const getDesksForUser = (user, desksList = []) => {
 };
 
 export const getItemType = (item) => {
-    const itemType = get(item, '_type');
+    const itemType = get(item, 'type');
 
     if (itemType === ITEM_TYPE.EVENT) {
         return ITEM_TYPE.EVENT;
@@ -531,8 +534,13 @@ export const getItemType = (item) => {
         return ITEM_TYPE.PLANNING;
     } else if (itemType === ITEM_TYPE.ASSIGNMENT) {
         return ITEM_TYPE.ASSIGNMENT;
-    } else if (itemType === ITEM_TYPE.ARCHIVE) {
-        return ITEM_TYPE.ARCHIVE;
+    } else if (_.includes([
+        ITEM_TYPE.TEXT,
+        ITEM_TYPE.COMPOSITE,
+        ITEM_TYPE.GRAPHIC,
+        ITEM_TYPE.VIDEO,
+        ITEM_TYPE.PICTURE], itemType)) {
+        return itemType;
     }
 
     return ITEM_TYPE.UNKNOWN;
@@ -546,10 +554,20 @@ export const getItemTypeString = (item) => {
         return gettext('Planning Item');
     case ITEM_TYPE.ASSIGNMENT:
         return gettext('Assignment');
-    case ITEM_TYPE.ARCHIVE:
-        return gettext('News Item');
+    case ITEM_TYPE.TEXT:
+        return gettext('Text');
+    case ITEM_TYPE.PICTURE:
+        return gettext('Picture');
+    case ITEM_TYPE.VIDEO:
+        return gettext('Video');
+    case ITEM_TYPE.GRAPHIC:
+        return gettext('Graphic');
+    case ITEM_TYPE.COMPOSITE:
+        return gettext('Composite');
+    case ITEM_TYPE.AUDIO:
+        return gettext('Audio');
     default:
-        return gettext('item');
+        return gettext('Item');
     }
 };
 
@@ -633,3 +651,51 @@ export const updateFormValues = (diff, field, value) => {
         forEach(field, (val, key) => set(diff, key, val));
     }
 };
+
+export const getWorkFlowStateAsOptions = (activeFilter = null) => {
+    let workflowStateOptions = [];
+
+    Object.keys(WORKFLOW_STATE).forEach((key) => {
+        if (key === 'SPIKED' || key === 'INGESTED' &&
+            [MAIN.FILTERS.COMBINED, MAIN.FILTERS.PLANNING].includes(activeFilter)) {
+            return;
+        }
+
+        workflowStateOptions.push({
+            qcode: WORKFLOW_STATE[key],
+            name: WORKFLOW_STATE[key]
+        });
+    });
+
+    return workflowStateOptions;
+};
+
+export const appendStatesQueryForAdvancedSearch = (advancedSearch, spikeState, mustNotTerms, mustTerms) => {
+    let states = (advancedSearch.state || []).map((s) => s.qcode);
+
+    switch (spikeState) {
+    case SPIKED_STATE.NOT_SPIKED:
+        mustNotTerms.push({term: {state: WORKFLOW_STATE.SPIKED}});
+        break;
+
+    case SPIKED_STATE.SPIKED:
+        mustTerms.push({term: {state: WORKFLOW_STATE.SPIKED}});
+        break;
+
+    case SPIKED_STATE.BOTH:
+    default:
+        // Push spiked state only if other states are selected
+        // Else, it will be fetched anyway
+        if (states.length > 0) {
+            states.push(WORKFLOW_STATE.SPIKED);
+        }
+    }
+
+    if (spikeState !== SPIKED_STATE.SPIKED && states.length > 0) {
+        mustTerms.push({terms: {state: states}});
+    }
+};
+
+export const getUserPreferences = (user, preferenceKey) => get(user, `user_preferences.${preferenceKey}`, null);
+
+export const getEnabledAgendas = (agendas) => (agendas || []).filter((agenda) => get(agenda, 'is_enabled', true));

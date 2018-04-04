@@ -1,4 +1,4 @@
-import {AUTOSAVE, EVENTS, PLANNING, FORM_NAMES, MAIN} from '../constants';
+import {AUTOSAVE, EVENTS, PLANNING, FORM_NAMES, MAIN, TEMP_ID_PREFIX} from '../constants';
 import {createReducer} from '../utils';
 import {pickBy, get} from 'lodash';
 
@@ -7,6 +7,7 @@ const initialState = {
     autosaves: {},
     itemId: null,
     itemType: null,
+    initialValues: null,
     loadingEditItem: false,
 };
 
@@ -27,16 +28,28 @@ const formsReducer = createReducer(initialState, {
             }
     ),
 
+    [AUTOSAVE.ACTIONS.REMOVE]: (state, payload) => ({
+        ...state,
+        autosaves: {
+            ...state.autosaves,
+            [FORM_NAMES.EventForm]: pickBy(state.autosaves.event, (event, key) => !key.startsWith(TEMP_ID_PREFIX)),
+            [FORM_NAMES.PlanningForm]: pickBy(state.autosaves.planning, (plan, key) => !key.startsWith(TEMP_ID_PREFIX)),
+        }
+    }
+    ),
+
     [MAIN.ACTIONS.OPEN_EDITOR]: (state, payload) => ({
         ...state,
         itemId: get(payload, '_id') || null,
-        itemType: get(payload, '_type') || null,
+        itemType: get(payload, 'type') || null,
+        initialValues: payload,
     }),
 
     [MAIN.ACTIONS.CLOSE_EDITOR]: (state) => ({
         ...state,
         itemId: null,
         itemType: null,
+        initialValues: null,
     }),
 
     [EVENTS.ACTIONS.UNLOCK_EVENT]: (state, payload) => (
@@ -45,7 +58,8 @@ const formsReducer = createReducer(initialState, {
                 ...state,
                 autosaves: {
                     ...state.autosaves,
-                    [FORM_NAMES.EventForm]: pickBy(state.events, (event, key) => key !== payload.event._id),
+                    [FORM_NAMES.EventForm]: pickBy(state.autosaves.event, (event, key) =>
+                        !key.startsWith(TEMP_ID_PREFIX) && key !== payload.event._id),
                 }
             }
     ),
@@ -56,7 +70,8 @@ const formsReducer = createReducer(initialState, {
                 ...state,
                 autosaves: {
                     ...state.autosaves,
-                    [FORM_NAMES.PlanningForm]: pickBy(state.planning, (plan, key) => key !== payload.plan._id),
+                    [FORM_NAMES.PlanningForm]: pickBy(state.autosaves.planning, (plan, key) =>
+                        !key.startsWith(TEMP_ID_PREFIX) && key !== payload.plan._id),
                 }
             }
     ),

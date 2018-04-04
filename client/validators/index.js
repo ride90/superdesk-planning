@@ -8,6 +8,8 @@ import {validateAssignment} from './assignments';
 export {eventValidators, formProfile, validateAssignment};
 
 import {get, set, isEqual} from 'lodash';
+import {WORKSPACE, WORKFLOW_STATE} from '../constants';
+import * as selectors from '../selectors';
 
 export const validateField = (dispatch, getState, profileName, field, value, profile, errors) => {
     if (get(profile, `schema.${field}.validate_on_publish`)) {
@@ -89,13 +91,23 @@ const validateCoverageScheduleDate = (dispatch, getState, field, value, profile,
         return;
     }
 
-    if (moment.isMoment(value) && value.isBefore(moment(), 'day')) {
+    let validateSchedule = true;
+    const newsItem = get(selectors.general.modalProps(getState()), 'newsItem', null);
+
+    if (selectors.getCurrentWorkspace(getState()) === WORKSPACE.AUTHORING && newsItem) {
+        if ([WORKFLOW_STATE.SCHEDULED, 'published'].includes(newsItem.state)) {
+            // We don't validate if newsitem is published/scheduled in add-to-planning modal
+            validateSchedule = false;
+        }
+    }
+
+    if (validateSchedule && moment.isMoment(value) && value.isBefore(moment(), 'day')) {
         errors[field] = 'Date cannot be in past';
     }
 };
 
 export const validators = {
-    events: {
+    event: {
         anpa_category: [formProfile],
         calendars: [formProfile],
         definition_long: [formProfile],

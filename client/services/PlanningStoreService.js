@@ -1,6 +1,6 @@
 import {isNil, zipObject, get} from 'lodash';
 import {createStore} from '../utils';
-import {CONTENT_TYPE_EVENT} from '../constants';
+import {ITEM_TYPE} from '../constants';
 
 PlanningStoreService.$inject = [
     '$rootScope',
@@ -27,6 +27,7 @@ PlanningStoreService.$inject = [
     '$interpolate',
     'search',
     'contacts',
+    'preferencesService'
 ];
 export function PlanningStoreService(
     $rootScope,
@@ -52,7 +53,8 @@ export function PlanningStoreService(
     $q,
     $interpolate,
     search,
-    contacts
+    contacts,
+    preferencesService
 ) {
     let self = this;
 
@@ -96,6 +98,7 @@ export function PlanningStoreService(
                 default_operator: 'AND',
                 q: 'public:(1) is_active:(1)',
             }).then((items) => items),
+            preferences: preferencesService.get(null, true)
         }).then((data) => {
             const initialState = {
                 config: config,
@@ -106,7 +109,7 @@ export function PlanningStoreService(
                 ),
                 ingest: {
                     providers: data.ingest._items.filter((p) =>
-                        p.content_types.indexOf(CONTENT_TYPE_EVENT) !== -1)
+                        p.content_types.indexOf(ITEM_TYPE.EVENT) !== -1)
                         .map((provider) => ({
                             name: provider.name,
                             id: provider._id,
@@ -125,6 +128,7 @@ export function PlanningStoreService(
                 session: {
                     sessionId: session.sessionId,
                     identity: session.identity,
+                    userPreferences: data.preferences || {}
                 },
                 urgency: {
                     urgency: metadata.values.urgency,

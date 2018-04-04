@@ -39,8 +39,7 @@ export const WORKFLOW_STATE = {
     CANCELLED: 'cancelled',
     RESCHEDULED: 'rescheduled',
     POSTPONED: 'postponed',
-    SPIKED: 'spiked',
-    ACTIVE: 'active',
+    SPIKED: 'spiked'
 };
 
 export const PUBLISHED_STATE = {
@@ -59,10 +58,6 @@ export const SPIKED_STATE = {
     BOTH: 'both',
 };
 
-export const ADVANCED_SEARCH_CONTEXT = {
-    EVENT: 'event',
-    PLANNING: 'planning',
-};
 export const RESET_STORE = 'RESET_STORE';
 export const INIT_STORE = 'INIT_STORE';
 export const FORM_NAMES = {
@@ -73,15 +68,30 @@ export const FORM_NAMES = {
     EditAssignmentPriorityForm: 'editAssignmentPriorityForm',
     UpdateAssignmentForm: 'updateAssignmentForm',
     PlanningForm: 'planning',
-    EventForm: 'events',
+    EventForm: 'event',
 };
 
+/*
+ * Types of content
+ */
 export const ITEM_TYPE = {
-    EVENT: 'events',
+    EVENT: 'event',
     PLANNING: 'planning',
-    ASSIGNMENT: 'assignments',
-    ARCHIVE: 'archive',
+    ASSIGNMENT: 'assignment',
+    TEXT: 'text',
+    PICTURE: 'picture',
+    VIDEO: 'video',
+    AUDIO: 'audio',
+    GRAPHIC: 'graphic',
+    COMPOSITE: 'composite',
     UNKNOWN: 'unknown'
 };
 
-export const CONTENT_TYPE_EVENT = 'event';
+export const TEMP_ID_PREFIX = 'tempId-';
+
+// The delay in ms for use with single and double click detection
+export const CLICK_DELAY = 250;
+
+export const USER_ACTIONS = {
+    SET_USER_PREFERNCES: 'SET_USER_PREFERNCES'
+};

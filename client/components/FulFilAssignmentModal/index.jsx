@@ -4,11 +4,8 @@ import {connect} from 'react-redux';
 
 import {Button} from '../UI';
 
-import {
-    Modal,
-    AssignmentListContainer,
-} from '../index';
-
+import {Modal} from '../index';
+import {AssignmentsApp} from '../../apps';
 import {ArchiveItem} from '../Archive';
 
 import * as selectors from '../../selectors';
@@ -47,7 +44,7 @@ export function FulFilAssignmentComponent({
                 {!actionInProgress && <a className="close" onClick={handleCancel}>
                     <i className="icon-close-small" />
                 </a>}
-                <h3>{gettext('Fulfil Assignment')}</h3>
+                <h3>{gettext('Select an Assignment')}</h3>
             </Modal.Header>
 
             <Modal.Body
@@ -61,7 +58,11 @@ export function FulFilAssignmentComponent({
                         urgencies={urgencies}
                         urgencyLabel={urgencyLabel}
                     />
-                    <AssignmentListContainer />
+                    <AssignmentsApp
+                        showModals={false}
+                        showWorkqueue={false}
+                        marginBottom={false}
+                    />
                 </div>
             </Modal.Body>
 
@@ -83,7 +84,7 @@ FulFilAssignmentComponent.propTypes = {
         $scope: PropTypes.object,
     }),
     currentWorkspace: PropTypes.string,
-    actionInProgress: PropTypes.boolean,
+    actionInProgress: PropTypes.bool,
     priorities: PropTypes.array,
     urgencies: PropTypes.array,
     urgencyLabel: PropTypes.string,

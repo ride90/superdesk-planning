@@ -56,6 +56,8 @@ export class PlanningItem extends React.PureComponent {
             .filter((agenda) => agenda);
 
         const itemActionsCallBack = {
+            [PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName]:
+                this.props[PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName],
             [PLANNING.ITEM_ACTIONS.DUPLICATE.actionName]: this.props[PLANNING.ITEM_ACTIONS.DUPLICATE.actionName],
             [PLANNING.ITEM_ACTIONS.UNSPIKE.actionName]: this.props[PLANNING.ITEM_ACTIONS.UNSPIKE.actionName],
             [PLANNING.ITEM_ACTIONS.SPIKE.actionName]: this.props[PLANNING.ITEM_ACTIONS.SPIKE.actionName],
@@ -63,6 +65,10 @@ export class PlanningItem extends React.PureComponent {
                 this.props[PLANNING.ITEM_ACTIONS.CANCEL_PLANNING.actionName],
             [PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.actionName]:
                 this.props[PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.actionName],
+            [PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName]:
+                this.props[PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName],
+            [PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.actionName]:
+                this.props[PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.actionName],
             [EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName]:
                 this.props[EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName],
             [EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.actionName]:
@@ -75,8 +81,14 @@ export class PlanningItem extends React.PureComponent {
                 this.props[EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.actionName],
         };
         const itemActions = currentWorkspace === WORKSPACE.PLANNING ?
-            planningUtils.getPlanningActions(item, event, session, privileges, lockedItems, itemActionsCallBack) :
-            [];
+            planningUtils.getPlanningActions({
+                item: item,
+                event: event,
+                session: session,
+                privileges: privileges,
+                lockedItems: lockedItems,
+                agendas: agendas,
+                callBacks: itemActionsCallBack}) : [];
 
         const showAddCoverage = currentWorkspace === WORKSPACE.AUTHORING && !isItemLocked;
 
@@ -177,6 +189,7 @@ PlanningItem.propTypes = {
     [PLANNING.ITEM_ACTIONS.UNSPIKE.actionName]: PropTypes.func,
     [PLANNING.ITEM_ACTIONS.CANCEL_PLANNING.actionName]: PropTypes.func,
     [PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.actionName]: PropTypes.func,
+    [PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName]: PropTypes.func,
     [EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName]: PropTypes.func,
     [EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.actionName]: PropTypes.func,
     [EVENTS.ITEM_ACTIONS.UPDATE_TIME.actionName]: PropTypes.func,

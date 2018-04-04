@@ -3,9 +3,8 @@ import planningApi from '../api';
 import assignmentApi from '../../assignments/api';
 import {main, locks} from '../../';
 import sinon from 'sinon';
-import {PRIVILEGES, ASSIGNMENTS, MAIN, WORKSPACE} from '../../../constants';
+import {PRIVILEGES, MAIN, WORKSPACE} from '../../../constants';
 import {getTestActionStore, restoreSinonStub, expectAccessDenied} from '../../../utils/testUtils';
-import moment from 'moment';
 
 describe('actions.planning.ui', () => {
     let store;
@@ -522,189 +521,6 @@ describe('actions.planning.ui', () => {
         });
     });
 
-    describe('onAddPlanningClick', () => {
-        it('converts a news item to a planning item', (done) => {
-            const newsItem = {
-                _id: 'news1',
-                slugline: 'slugger',
-                ednote: 'Edit my note!',
-                type: 'text',
-                subject: 'sub',
-                anpa_category: 'cat',
-                urgency: 3,
-                abstract: '<p>some abstractions</p>',
-                state: 'published',
-                _updated: '2019-10-15T10:01:11',
-                task: {
-                    desk: 'desk3',
-                    user: 'ident2',
-                    priority: ASSIGNMENTS.DEFAULT_PRIORITY,
-                },
-            };
-
-            store.init();
-            store.initialState.workspace.currentDeskId = 'desk1';
-            store.initialState.planning.currentPlanningId = 'p1';
-            store.initialState.modal = {
-                modalType: 'ADD_TO_PLANNING',
-                modalProps: {newsItem},
-            };
-            store.test(done, planningUi.onAddPlanningClick())
-                .then(() => {
-                    expect(planningApi.unlock.callCount).toBe(1);
-                    expect(planningApi.unlock.args[0]).toEqual([data.plannings[0]]);
-
-                    expect(planningUi._openEditor.callCount).toBe(1);
-                    expect(planningUi._openEditor.args[0]).toEqual([{
-                        slugline: 'slugger',
-                        ednote: 'Edit my note!',
-                        subject: 'sub',
-                        anpa_category: 'cat',
-                        urgency: 3,
-                        description_text: 'some abstractions',
-                        coverages: [{
-                            planning: {
-                                g2_content_type: 'text',
-                                slugline: 'slugger',
-                                ednote: 'Edit my note!',
-                                scheduled: '2019-10-15T10:01:11',
-                            },
-                            news_coverage_status: {qcode: 'ncostat:int'},
-                            assigned_to: {
-                                desk: 'desk3',
-                                user: 'ident2',
-                                priority: ASSIGNMENTS.DEFAULT_PRIORITY,
-                            },
-                        }],
-                    }]);
-
-                    done();
-                });
-        });
-
-        it('perpetuate `marked_for_not_publication` flag', (done) => {
-            const newsItem = {
-                _id: 'news1',
-                slugline: 'slugger',
-                ednote: 'Edit my note!',
-                type: 'text',
-                subject: 'sub',
-                anpa_category: 'cat',
-                urgency: 3,
-                abstract: '<p>some abstractions</p>',
-                state: 'published',
-                _updated: '2019-10-15T10:01:11',
-                task: {
-                    desk: 'desk3',
-                    user: 'ident2',
-                    priority: ASSIGNMENTS.DEFAULT_PRIORITY,
-                },
-                flags: {marked_for_not_publication: true},
-            };
-
-            store.init();
-            store.initialState.workspace.currentDeskId = 'desk1';
-            store.initialState.planning.currentPlanningId = 'p1';
-            store.initialState.modal = {
-                modalType: 'ADD_TO_PLANNING',
-                modalProps: {newsItem},
-            };
-            store.test(done, planningUi.onAddPlanningClick())
-                .then(() => {
-                    expect(planningApi.unlock.callCount).toBe(1);
-                    expect(planningApi.unlock.args[0]).toEqual([data.plannings[0]]);
-
-                    expect(planningUi._openEditor.callCount).toBe(1);
-                    expect(planningUi._openEditor.args[0]).toEqual([{
-                        slugline: 'slugger',
-                        ednote: 'Edit my note!',
-                        subject: 'sub',
-                        anpa_category: 'cat',
-                        urgency: 3,
-                        description_text: 'some abstractions',
-                        coverages: [{
-                            planning: {
-                                g2_content_type: 'text',
-                                slugline: 'slugger',
-                                ednote: 'Edit my note!',
-                                scheduled: '2019-10-15T10:01:11',
-                            },
-                            news_coverage_status: {qcode: 'ncostat:int'},
-                            assigned_to: {
-                                desk: 'desk3',
-                                user: 'ident2',
-                                priority: ASSIGNMENTS.DEFAULT_PRIORITY,
-                            },
-                        }],
-                        flags: {marked_for_not_publication: true},
-                    }]);
-
-                    done();
-                });
-        });
-    });
-
-    describe('createCoverageFromNewsItem', () => {
-        it('creates photo coverage from unpublished news item', () => {
-            store.initialState.workspace.currentDeskId = 'desk1';
-            store.initialState.workspace.currentUserId = 'ident1';
-            const newsItem = {
-                slugline: 'slug',
-                ednote: 'edit my note',
-                type: 'picture',
-                state: 'draft',
-            };
-
-            const coverage = planningUi.createCoverageFromNewsItem(newsItem, store.getState);
-
-            expect(coverage).toEqual({
-                planning: {
-                    g2_content_type: 'photo',
-                    slugline: 'slug',
-                    ednote: 'edit my note',
-                    scheduled: moment().endOf('day'),
-                },
-                news_coverage_status: {qcode: 'ncostat:int'},
-                assigned_to: {
-                    desk: 'desk1',
-                    user: 'ident1',
-                    priority: ASSIGNMENTS.DEFAULT_PRIORITY,
-                },
-            });
-        });
-
-        it('creates text coverage from published news item', () => {
-            const newsItem = {
-                slugline: 'slug',
-                ednote: 'edit my note',
-                type: 'picture',
-                state: 'published',
-                _updated: '2019-10-15T14:01:11',
-                task: {
-                    desk: 'desk2',
-                    user: 'ident2',
-                },
-            };
-
-            const coverage = planningUi.createCoverageFromNewsItem(newsItem, store.getState);
-
-            expect(coverage).toEqual({
-                planning: {
-                    g2_content_type: 'photo',
-                    slugline: 'slug',
-                    ednote: 'edit my note',
-                    scheduled: '2019-10-15T14:01:11',
-                },
-                news_coverage_status: {qcode: 'ncostat:int'},
-                assigned_to: {
-                    desk: 'desk2',
-                    user: 'ident2',
-                    priority: ASSIGNMENTS.DEFAULT_PRIORITY,
-                },
-            });
-        });
-    });
-
     describe('save', () => {
         it('calls saveAndReloadCurrentAgenda if in the Planning UI', () => {
             sinon.stub(planningUi, 'saveAndReloadCurrentAgenda').callsFake(() => (Promise.resolve()));
@@ -722,6 +538,31 @@ describe('actions.planning.ui', () => {
 
             expect(planningUi.saveFromAuthoring.callCount).toBe(1);
             expect(planningUi.saveFromAuthoring.args[0][0]).toEqual(data.plannings[0]);
+        });
+    });
+
+
+    describe('saveAndUnlockPlanning', () => {
+        beforeEach(() => {
+            sinon.stub(planningUi, 'save').callsFake((item) => (Promise.resolve(item)));
+            sinon.stub(locks, 'unlock').callsFake((item) => (Promise.resolve(item)));
+        });
+
+        it('saves and unlocks planning item', (done) =>
+            store.test(done, planningUi.saveAndUnlockPlanning(data.plannings[0]))
+                .then(() => {
+                    expect(planningUi.save.callCount).toBe(1);
+                    expect(planningUi.save.args[0]).toEqual([data.plannings[0]]);
+
+                    expect(locks.unlock.callCount).toBe(1);
+                    expect(locks.unlock.args[0]).toEqual([data.plannings[0]]);
+
+                    done();
+                }));
+
+        afterEach(() => {
+            restoreSinonStub(planningUi.save);
+            restoreSinonStub(locks.unlock);
         });
     });
 
@@ -867,6 +708,41 @@ describe('actions.planning.ui', () => {
                     expect(services.notify.success.callCount).toBe(0);
                     expect(services.notify.error.callCount).toBe(1);
                     expect(services.notify.error.args[0]).toEqual(['Failed!']);
+
+                    done();
+                });
+        });
+    });
+
+    describe('assignToAgenda', () => {
+        beforeEach(() => {
+            sinon.stub(planningUi, 'save').callsFake((item) => Promise.resolve(item));
+            sinon.stub(locks, 'unlock').callsFake((item) => (Promise.resolve(item)));
+        });
+
+        afterEach(() => {
+            restoreSinonStub(planningUi.save);
+            restoreSinonStub(locks.unlock);
+        });
+
+        it('assignToAgenda adds and agenda to planning item and calls save and unlocks item', (done) => {
+            const planningWithAgenda = {
+                ...data.plannings[0],
+                agendas: ['a1'],
+            };
+
+            return store.test(done, planningUi.assignToAgenda(data.plannings[0], data.agendas[0]))
+                .then(() => {
+                    expect(planningUi.save.callCount).toBe(1);
+                    expect(planningUi.save.args[0]).toEqual([planningWithAgenda]);
+
+                    expect(services.notify.error.callCount).toBe(0);
+                    expect(services.notify.success.callCount).toBe(1);
+                    expect(services.notify.success.args[0]).toEqual(
+                        ['Agenda assigned to the planning item.']);
+
+                    expect(locks.unlock.callCount).toBe(1);
+                    expect(locks.unlock.args[0]).toEqual([planningWithAgenda]);
 
                     done();
                 });

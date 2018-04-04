@@ -51,7 +51,7 @@ export const getAssignmentsCompletedListCount = (state) => (get(state,
 export const getAssignmentListSingleGroupView = (state) => get(state,
     'assignment.assignmentListSingleGroupView', null);
 
-export const getPreviewAssignmentOpened = (state) => get(state, 'assignment.previewOpened');
+export const getPreviewAssignmentOpened = (state) => !!get(state, 'assignment.previewOpened');
 export const getCurrentAssignmentId = (state) => get(state, 'assignment.currentAssignmentId');
 export const getReadOnlyAssignment = (state) => get(state, 'assignment.readOnly');
 export const getFulFilledItem = (state) => get(state, 'assignment.fulfilledItem', {});
@@ -59,6 +59,8 @@ export const getAssignmentPriorities = (state) => get(state, 'vocabularies.assig
 export const getArchivePriorities = (state) => get(state, 'vocabularies.priority', []);
 export const getUrgencies = (state) => get(state, 'vocabularies.urgency', []);
 export const getAssignmentHistory = (state) => get(state, 'assignment.assignmentHistoryItems');
+
+export const getMyAssignmentsCount = (state) => (get(state, 'assignment.myAssignmentsTotal', 0));
 
 export const getTodoAssignments = createSelector(
     [getAssignmentsInTodoList, getStoredAssignments],
@@ -73,19 +75,6 @@ export const getInProgressAssignments = createSelector(
 export const getCompletedAssignments = createSelector(
     [getAssignmentsInCompletedList, getStoredAssignments],
     (assignmentIds, storedAssignments) => (getItemsById(assignmentIds, storedAssignments))
-);
-
-export const getMyAssignmentsCount = createSelector(
-    [getTodoAssignments, getCurrentUserId], // This should change!!
-    (assignments, userId) => {
-        if (assignments && userId) {
-            return assignments.reduce((previousValue, assignment) =>
-                previousValue + (
-                    get(assignment, 'assigned_to.user') === userId ? 1 : 0
-                ), 0
-            );
-        }
-    }
 );
 
 export const getCurrentAssignment = createSelector(

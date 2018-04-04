@@ -7,17 +7,14 @@ import {
     checkPermission,
     getErrorMessage,
     lockUtils,
-    planningUtils,
     dispatchUtils,
     gettext,
 } from '../../utils';
 
 import * as selectors from '../../selectors';
-import {PLANNING, PRIVILEGES, SPIKED_STATE, WORKSPACE, MODALS, ASSIGNMENTS, MAIN} from '../../constants';
+import {PLANNING, PRIVILEGES, SPIKED_STATE, WORKSPACE, MODALS, MAIN} from '../../constants';
 import * as actions from '../index';
 import {get, orderBy} from 'lodash';
-import moment from 'moment';
-import {stripHtmlRaw} from 'superdesk-core/scripts/apps/authoring/authoring/helpers';
 
 /**
  * Action dispatcher that marks a Planning item as spiked
@@ -387,6 +384,30 @@ const scheduleRefetch = () => (
     )
 );
 
+/**
+ * Action dispatcher that attempts to assign an agenda to a Planning item
+ * @param {object} item - The Planning item to asssign the agenda
+ * @param {object} item - Agenda to be assigned
+ * @return Promise
+ */
+const assignToAgenda = (item, agenda) => (
+    (dispatch, getState, {notify}) => (
+        dispatch(locks.lock(item))
+            .then((lockedItem) => {
+                lockedItem.agendas = [...get(lockedItem, 'agendas', []), agenda._id];
+                return dispatch(self.saveAndUnlockPlanning(lockedItem)).then(() => {
+                    notify.success(gettext('Agenda assigned to the planning item.'));
+                    return Promise.resolve();
+                });
+            }, (error) => {
+                notify.error(
+                    getErrorMessage(error, gettext('Could not obtain lock on the planning item.'))
+                );
+                return Promise.reject(error);
+            })
+    )
+);
+
 const duplicate = (plan) => (
     (dispatch, getState, {notify}) => (
         dispatch(planningApi.duplicate(plan))
@@ -495,6 +516,26 @@ const save = (item) => (
 );
 
 /**
+ * Action dispatcher that attempts to save and unlock a Planning item
+ * @param {object} item - The Planning item to save and unlock
+ * @return Promise
+ */
+const saveAndUnlockPlanning = (item) => (
+    (dispatch, getState, {notify}) => (
+        dispatch(self.save(item))
+            .then((savedItem) => dispatch(locks.unlock(savedItem))
+                .then(() => Promise.resolve(savedItem))
+                .catch(() => {
+                    notify.error(gettext('Could not unlock the planning item.'));
+                    return Promise.resolve(savedItem);
+                }), (error) => {
+                notify.error(gettext('Could not save the planning item.'));
+                return Promise.resolve(item);
+            })
+    )
+);
+
+/**
  * Close advanced search panel
  */
 const closeAdvancedSearch = () => ({type: PLANNING.ACTIONS.CLOSE_ADVANCED_SEARCH});
@@ -580,7 +621,7 @@ function deselectAll() {
     return {type: PLANNING.ACTIONS.DESELECT_ALL};
 }
 
-const onAddCoverageClick = (item, addNewsItemToPlanning = null) => (
+const onAddCoverageClick = (item) => (
     (dispatch, getState, {notify}) => {
         const state = getState();
         const lockedItems = selectors.locks.getLockedItems(state);
@@ -616,101 +657,20 @@ const onAddCoverageClick = (item, addNewsItemToPlanning = null) => (
     }
 );
 
-const onAddPlanningClick = () => (
-    (dispatch, getState, {notify}) => {
-        const modalType = selectors.getCurrentModalType(getState());
-
-        if (modalType !== MODALS.ADD_TO_PLANNING)
-            return Promise.resolve();
-
-        const modalProps = selectors.getCurrentModalProps(getState());
-
-        if (!get(modalProps, 'newsItem')) {
-            notify.error('No content item provided.');
-            return Promise.reject('No content item provided.');
-        }
-
-        const {newsItem} = modalProps;
-
-        // Unlock the currentPlanning if it exists
-        const currentPlanning = selectors.getCurrentPlanning(getState());
-
-        if (currentPlanning) {
-            dispatch(planningApi.unlock(currentPlanning));
-        }
-
-        const coverage = self.createCoverageFromNewsItem(newsItem, getState);
-        const newPlanning = {
-            slugline: newsItem.slugline,
-            ednote: get(newsItem, 'ednote'),
-            subject: get(newsItem, 'subject'),
-            anpa_category: get(newsItem, 'anpa_category'),
-            urgency: get(newsItem, 'urgency'),
-            description_text: stripHtmlRaw(
-                get(newsItem, 'abstract', get(newsItem, 'headline', ''))
-            ),
-            coverages: [coverage],
-        };
-
-        if (get(newsItem, 'flags.marked_for_not_publication')) {
-            newPlanning.flags = {marked_for_not_publication: true};
-        }
-
-        return dispatch(self._openEditor(newPlanning));
-    }
-);
-
-const createCoverageFromNewsItem = (newsItem, getState) => {
-    const contentTypes = selectors.getContentTypes(getState());
-    const contentType = contentTypes.find(
-        (ctype) => get(ctype, 'content item type') === newsItem.type
-    );
-    const coverage = {
-        planning: {
-            g2_content_type: get(contentType, 'qcode', PLANNING.G2_CONTENT_TYPE.TEXT),
-            slugline: get(newsItem, 'slugline', ''),
-            ednote: get(newsItem, 'ednote', ''),
-        },
-        news_coverage_status: {qcode: 'ncostat:int'},
-    };
-
-    if (get(newsItem, 'genre')) {
-        coverage.planning.genre = newsItem.genre;
-        planningUtils.convertGenreToObject(coverage);
-    }
-
-    if (get(newsItem, 'state') === 'published') {
-        coverage.planning.scheduled = newsItem._updated;
-        coverage.assigned_to = {
-            desk: newsItem.task.desk,
-            user: newsItem.task.user,
-        };
-    } else {
-        coverage.planning.scheduled = moment().endOf('day');
-        coverage.assigned_to = {
-            desk: selectors.getCurrentDeskId(getState()),
-            user: selectors.getCurrentUserId(getState()),
-        };
-    }
-
-    coverage.assigned_to.priority = ASSIGNMENTS.DEFAULT_PRIORITY;
-    return coverage;
-};
-
 const saveFromAuthoring = (plan) => (
     (dispatch, getState, {notify}) => {
-        const {$scope, newsItem} = selectors.getCurrentModalProps(getState());
-
         dispatch(actions.actionInProgress(true));
+        let resolved = true;
+
         return dispatch(planningApi.save(plan))
             .then((newPlan) => {
+                const newsItem = get(selectors.general.modalProps(getState()), 'newsItem', null);
                 const coverages = orderBy(newPlan.coverages, ['firstcreated'], ['desc']);
                 const coverage = coverages[0];
 
                 return dispatch(actions.assignments.api.link(coverage.assigned_to, newsItem))
                     .then(() => {
                         notify.success('Content linked to the planning item.');
-                        $scope.resolve();
                         dispatch(actions.actionInProgress(false));
 
                         // If a new planning item was created, close editor
@@ -724,17 +684,30 @@ const saveFromAuthoring = (plan) => (
                         notify.error(
                             getErrorMessage(error, 'Failed to link to the Planning item!')
                         );
-                        $scope.reject();
+                        resolved = false;
                         return Promise.reject(error);
                     });
             }, (error) => {
+                resolved = false;
                 notify.error(
                     getErrorMessage(error, 'Failed to save the Planning item!')
                 );
-                $scope.reject();
+
                 return Promise.reject(error);
             })
             .finally(() => {
+                // resolving scope here because if there is a confirmation modal
+                // while saving the planning item, scope won't be available
+                const $scope = get(selectors.general.modalProps(getState()), '$scope', null);
+
+                if ($scope) {
+                    if (resolved) {
+                        $scope.resolve();
+                    } else {
+                        $scope.reject();
+                    }
+                }
+
                 dispatch(actions.hideModal());
                 dispatch(actions.actionInProgress(false));
             });
@@ -780,10 +753,10 @@ const self = {
     cancelPlanning,
     cancelAllCoverage,
     onAddCoverageClick,
-    onAddPlanningClick,
-    createCoverageFromNewsItem,
     saveFromAuthoring,
-    scheduleRefetch
+    scheduleRefetch,
+    assignToAgenda,
+    saveAndUnlockPlanning
 };
 
 export default self;

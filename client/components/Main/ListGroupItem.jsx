@@ -5,16 +5,16 @@ import {debounce, indexOf} from 'lodash';
 import {EventItem, EventItemWithPlanning} from '../Events';
 import {PlanningItem} from '../Planning';
 
-import {ITEM_TYPE, EVENTS, PLANNING, MAIN} from '../../constants';
+import {ITEM_TYPE, EVENTS, PLANNING, MAIN, CLICK_DELAY} from '../../constants';
 import {getItemType, eventUtils} from '../../utils';
 
-
-import '../../planning.scss';
 
 export class ListGroupItem extends React.Component {
     constructor(props) {
         super(props);
         this.state = {clickedOnce: undefined};
+        this._delayedClick = undefined;
+
         this.handleSingleAndDoubleClick = this.handleSingleAndDoubleClick.bind(this);
         this.onSingleClick = this.onSingleClick.bind(this);
     }
@@ -32,7 +32,7 @@ export class ListGroupItem extends React.Component {
 
     handleSingleAndDoubleClick(item) {
         if (!this._delayedClick) {
-            this._delayedClick = debounce(this.onSingleClick, 250);
+            this._delayedClick = debounce(this.onSingleClick, CLICK_DELAY);
         }
 
         if (this.state.clickedOnce) {
@@ -88,6 +88,8 @@ export class ListGroupItem extends React.Component {
         let eventProps = {
             ...itemProps,
             multiSelected: indexOf(selectedEventIds, item._id) !== -1,
+            [EVENTS.ITEM_ACTIONS.EDIT_EVENT.actionName]:
+                itemActions[EVENTS.ITEM_ACTIONS.EDIT_EVENT.actionName],
             [EVENTS.ITEM_ACTIONS.DUPLICATE.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.DUPLICATE.actionName],
             [EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName]:
@@ -129,6 +131,12 @@ export class ListGroupItem extends React.Component {
                 itemActions[PLANNING.ITEM_ACTIONS.CANCEL_PLANNING.actionName],
             [PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.actionName]:
                 itemActions[PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.actionName],
+            [PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName]:
+                itemActions[PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName],
+            [PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName]:
+                itemActions[PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName],
+            [PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.actionName]:
+                itemActions[PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.actionName],
             [EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName],
             [EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.actionName]:
@@ -140,7 +148,7 @@ export class ListGroupItem extends React.Component {
             [EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.actionName],
             [EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.actionName]:
-                itemActions[EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.actionName]
+                itemActions[EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.actionName],
         };
 
         switch (itemType) {

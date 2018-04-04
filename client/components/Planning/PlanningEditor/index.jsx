@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {connect} from 'react-redux';
-import moment from 'moment';
 import {get, cloneDeep, remove as _remove, some, isEqual} from 'lodash';
 import * as selectors from '../../../selectors';
 
@@ -22,8 +21,7 @@ import {ToggleBox} from '../../UI';
 import {PlanningEditorHeader} from './PlanningEditorHeader';
 import {CoverageArrayInput} from '../../Coverages';
 import {EventMetadata} from '../../Events';
-import {ITEM_TYPE, PLANNING, WORKFLOW_STATE, ASSIGNMENTS} from '../../../constants';
-import {stripHtmlRaw} from 'superdesk-core/scripts/apps/authoring/authoring/helpers';
+import {PLANNING, WORKFLOW_STATE, ASSIGNMENTS, COVERAGES} from '../../../constants';
 
 const toggleDetails = [
     'ednote',
@@ -41,7 +39,8 @@ export class PlanningEditorComponent extends React.Component {
         this.onCancelCoverage = this.onCancelCoverage.bind(this);
         this.onPlanningDateChange = this.onPlanningDateChange.bind(this);
         this.onAddCoverageToWorkflow = this.onAddCoverageToWorkflow.bind(this);
-        this.createNewPlanningFromNewsItem = this.createNewPlanningFromNewsItem.bind(this);
+
+        this.dom = {popupContainer: null};
     }
 
     componentWillMount() {
@@ -50,12 +49,7 @@ export class PlanningEditorComponent extends React.Component {
             if (!get(this.props, 'item._id')) {
                 let newItem = cloneDeep(get(this.props, 'diff'));
 
-                newItem.planning_date = moment();
-
-                // set the current agenda if agenda is enabled
-                if (get(this.props, 'currentAgenda.is_enabled')) {
-                    newItem.agendas = [this.props.currentAgenda._id];
-                }
+                this.fillCurrentAgenda(newItem);
                 this.props.onChangeHandler(null, newItem);
             }
         } else {
@@ -66,8 +60,14 @@ export class PlanningEditorComponent extends React.Component {
 
             // If we are creating a new planning item for 'add-to-planning'
             if (!get(this.props, 'item._id')) {
-                const newPlanning = this.createNewPlanningFromNewsItem();
+                let newPlanning = planningUtils.createNewPlanningFromNewsItem(
+                    this.props.addNewsItemToPlanning,
+                    this.props.newsCoverageStatus,
+                    this.props.desk,
+                    this.props.user,
+                    this.props.contentTypes);
 
+                this.fillCurrentAgenda(newPlanning);
                 this.props.onChangeHandler(null, newPlanning);
             } else {
                 let dupItem = cloneDeep(this.props.item);
@@ -85,34 +85,11 @@ export class PlanningEditorComponent extends React.Component {
         }
     }
 
-    createNewPlanningFromNewsItem() {
-        const {addNewsItemToPlanning} = this.props;
-        const newCoverage = planningUtils.createCoverageFromNewsItem(
-            this.props.addNewsItemToPlanning,
-            this.props.newsCoverageStatus,
-            this.props.desk,
-            this.props.user,
-            this.props.contentTypes);
-
-        let newPlanning = {
-            _type: ITEM_TYPE.PLANNING,
-            slugline: addNewsItemToPlanning.slugline,
-            planning_date: moment(),
-            ednote: get(addNewsItemToPlanning, 'ednote'),
-            subject: get(addNewsItemToPlanning, 'subject'),
-            anpa_category: get(addNewsItemToPlanning, 'anpa_category'),
-            urgency: get(addNewsItemToPlanning, 'urgency'),
-            description_text: stripHtmlRaw(
-                get(addNewsItemToPlanning, 'abstract', get(addNewsItemToPlanning, 'headline', ''))
-            ),
-            coverages: [newCoverage],
-        };
-
-        if (get(addNewsItemToPlanning, 'flags.marked_for_not_publication')) {
-            newPlanning.flags = {marked_for_not_publication: true};
+    fillCurrentAgenda(item) {
+        // set the current agenda if agenda is enabled
+        if (get(this.props, 'currentAgenda.is_enabled')) {
+            item.agendas = [this.props.currentAgenda._id];
         }
-
-        return newPlanning;
     }
 
     onDuplicateCoverage(coverage, duplicateAs) {
@@ -165,7 +142,7 @@ export class PlanningEditorComponent extends React.Component {
     onAddCoverageToWorkflow(coverage) {
         const index = this.props.item.coverages.findIndex((c) => c.coverage_id === coverage.coverage_id);
 
-        this.onChange('coverages[' + index + '].workflow_status', WORKFLOW_STATE.ACTIVE);
+        this.onChange('coverages[' + index + '].workflow_status', COVERAGES.WORKFLOW_STATE.ACTIVE);
         this.onChange('coverages[' + index + '].assigned_to.state', ASSIGNMENTS.WORKFLOW_STATE.ASSIGNED);
     }
 
@@ -180,18 +157,15 @@ export class PlanningEditorComponent extends React.Component {
             valueToUpdate = get(value, 'qcode', null);
         }
 
-        if (field === 'coverages' && this.props.addNewsItemToPlanning) {
-            valueToUpdate[value.length - 1] = planningUtils.createCoverageFromNewsItem(
-                this.props.addNewsItemToPlanning,
-                this.props.newsCoverageStatus,
-                this.props.desk,
-                this.props.user,
-                this.props.contentTypes);
-        } else if (field.match(/coverages\[/)) {
+        if (field.match(/coverages\[/)) {
+            const {newsCoverageStatus} = this.props;
+
             // If there is an assignment and coverage status not planned,
             // change it to 'planned'
-            if (get(value, 'news_coverage_status.qcode') !== this.props.newsCoverageStatus[0].qcode &&
-                !!get(value, 'assigned_to.desk')) {
+            if (newsCoverageStatus.length > 0
+                && get(value, 'news_coverage_status.qcode') !== newsCoverageStatus[0].qcode
+                && !!get(value, 'assigned_to.desk')
+            ) {
                 valueToUpdate = {
                     ...value,
                     news_coverage_status: this.props.newsCoverageStatus[0]
@@ -433,14 +407,14 @@ export class PlanningEditorComponent extends React.Component {
                             {...fieldProps}
                         />
 
-                        <Field
+                        {!get(item, 'pubstatus') && <Field
                             component={ToggleInput}
                             field="flags.marked_for_not_publication"
                             label={gettext('Not for Publication')}
                             labelLeft={true}
                             defaultValue={false}
                             {...fieldProps}
-                        />
+                        />}
                     </ToggleBox>
                 </ContentBlock>
 
@@ -482,12 +456,16 @@ export class PlanningEditorComponent extends React.Component {
                     readOnly={readOnly}
                     maxCoverageCount={maxCoverageCount}
                     addOnly={!!addNewsItemToPlanning}
+                    addNewsItemToPlanning={addNewsItemToPlanning}
                     originalCount={get(item, 'coverages', []).length}
                     defaultValue={[]}
                     defaultGenre={this.props.defaultGenre}
                     {...fieldProps}
                     formProfile={coverageProfile}
+                    popupContainer={() => this.dom.popupContainer}
                 />
+
+                {!!addNewsItemToPlanning && <div ref={(node) => this.dom.popupContainer = node} />}
             </div>
         );
     }

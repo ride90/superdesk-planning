@@ -1,3 +1,4 @@
+import moment from 'moment';
 import {gettext} from '../utils/gettext';
 
 export const PLANNING = {
@@ -70,7 +71,23 @@ export const PLANNING = {
             actionName: 'onCancelAllCoverage',
             lock_action: 'cancel_all_coverage',
         },
-        ADD_TO_PLANNING: {lock_action: 'add_to_planning'}
+        ADD_TO_PLANNING: {lock_action: 'add_to_planning'},
+        ADD_AS_EVENT: {
+            label: gettext('Add As Event'),
+            icon: 'icon-calendar',
+            actionName: 'onAddAsEvent',
+        },
+        EDIT_PLANNING: {
+            label: gettext('Edit'),
+            icon: 'icon-pencil',
+            actionName: 'onEditPlanning',
+            lock_action: 'edit'
+        },
+        ASSIGN_TO_AGENDA: {
+            label: gettext('Assign to agenda'),
+            icon: 'icon-list-plus',
+            actionName: 'onAssignToAgenda',
+        }
     },
     NEWS_COVERAGE_CANCELLED_STATUS: {
         qcode: 'ncostat:notint',
@@ -84,5 +101,8 @@ export const PLANNING = {
         AUDIO: 'audio',
         PICTURE: 'picture',
     },
-    DEFAULT_VALUE: {_type: 'planning'}
+    DEFAULT_VALUE: {
+        type: 'planning',
+        planning_date: moment(),
+    }
 };

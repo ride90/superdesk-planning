@@ -35,6 +35,8 @@ export class EventItem extends React.PureComponent {
             borderState = 'active';
 
         const itemActionsCallBack = {
+            [EVENTS.ITEM_ACTIONS.EDIT_EVENT.actionName]:
+                this.props[EVENTS.ITEM_ACTIONS.EDIT_EVENT.actionName],
             [EVENTS.ITEM_ACTIONS.DUPLICATE.actionName]: this.props[EVENTS.ITEM_ACTIONS.DUPLICATE.actionName],
             [EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName]:
                 this.props[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName],
@@ -78,7 +80,7 @@ export class EventItem extends React.PureComponent {
                                 onEventCapture(e);
                                 onItemClick({
                                     _id: item.reschedule_from,
-                                    _type: 'events',
+                                    type: 'event',
                                 });
                             }}
                             text={actionedState.label}

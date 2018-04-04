@@ -5,13 +5,13 @@ import {
     getTimeZoneOffset,
     sanitizeTextForQuery,
     lockUtils,
+    appendStatesQueryForAdvancedSearch,
 } from '../../utils';
 import planningUtils from '../../utils/planning';
 import {
     PLANNING,
     PUBLISHED_STATE,
     SPIKED_STATE,
-    WORKFLOW_STATE,
     MODALS, MAIN,
 } from '../../constants';
 import main from '../main';
@@ -99,18 +99,6 @@ const getCriteria = ({
                         constant_score: {filter: {exists: {field: 'agendas'}}}
                     });
                 }
-            },
-        },
-        {
-            condition: () => (spikeState === SPIKED_STATE.SPIKED),
-            do: () => {
-                must.push({term: {state: WORKFLOW_STATE.SPIKED}});
-            },
-        },
-        {
-            condition: () => (spikeState === SPIKED_STATE.NOT_SPIKED || !spikeState),
-            do: () => {
-                mustNot.push({term: {state: WORKFLOW_STATE.SPIKED}});
             },
         },
         {
@@ -277,6 +265,9 @@ const getCriteria = ({
             action.do();
         }
     });
+
+    // Handle 'state' and 'spiked' requirements
+    appendStatesQueryForAdvancedSearch(advancedSearch, spikeState, mustNot, must);
 
     query.bool = {
         must: must,
@@ -641,9 +632,8 @@ const getPlanning = (planId, saveToStore = true) => (
  */
 const save = (item, original = undefined) => (
     (dispatch, getState, {api}) => {
-        // remove all properties starting with _,
-        // otherwise it will fail for "unknown field" with `_type`
-        let updates = pickBy(cloneDeep(item), (v, k) => (k === '_id' || !k.startsWith('_')));
+        // remove all properties starting with _ or lock_,
+        let updates = pickBy(cloneDeep(item), (v, k) => (!k.startsWith('_') && !k.startsWith('lock_')));
 
         // remove nested original creator
         delete updates.original_creator;
@@ -666,8 +656,8 @@ const save = (item, original = undefined) => (
         return new Promise((resolve, reject) => {
             if (original !== undefined && !isEqual(original, {})) {
                 return resolve(original);
-            } else if (get(updates, '_id')) {
-                return dispatch(self.fetchById(updates._id))
+            } else if (get(item, '_id')) {
+                return dispatch(self.fetchById(item._id))
                     .then(
                         (planning) => resolve(planning),
                         (error) => reject(error)
@@ -678,8 +668,16 @@ const save = (item, original = undefined) => (
                 // As assignments are created and require a Planning ID
                 // const coverages = cloneDeep(item.coverages)
                 // item.coverages = []
+                let modifiedUpdates = cloneDeep(updates);
+
+                if (updates.pubstatus === PUBLISHED_STATE.USABLE) {
+                    // We are create&publishing from add-to-planning
+                    delete modifiedUpdates.pubstatus;
+                    delete modifiedUpdates.state;
+                }
+
                 return api('planning').save({}, {
-                    ...updates,
+                    ...modifiedUpdates,
                     coverages: [],
                 })
                     .then(
@@ -747,7 +745,7 @@ const duplicate = (plan) => (
     (dispatch, getState, {api}) => (
         api('planning_duplicate', plan).save({})
             .then((newPlan) => {
-                newPlan._type = 'planning';
+                newPlan.type = 'planning';
                 return Promise.resolve(newPlan);
             }, (error) => (
                 Promise.reject(error)

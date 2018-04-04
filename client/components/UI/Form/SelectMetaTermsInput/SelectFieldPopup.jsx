@@ -212,6 +212,7 @@ export class SelectFieldPopup extends React.Component {
                 close={this.props.onCancel}
                 target={this.props.target}
                 onKeyDown={this.onKeyDown}
+                popupContainer={this.props.popupContainer}
             >
                 <div className="Select__popup" ref={(node) => this.dom.root = node}>
                     <div className="Select__popup__search">
@@ -256,6 +257,7 @@ export class SelectFieldPopup extends React.Component {
                 close={this.props.onCancel}
                 target={this.props.target}
                 onKeyDown={this.onKeyDown}
+                popupContainer={this.props.popupContainer}
             >
                 <div className="Select__popup" ref={(node) => this.dom.root = node}>
                     <div className="Select__popup__search">
@@ -279,16 +281,15 @@ export class SelectFieldPopup extends React.Component {
                                 </button>
                             </div>
                         ) || (
-                                <SearchBar
-                                    onSearch={this.filterSearchResults}
-                                    minLength={1}
-                                    extendOnOpen={true}
-                                    ref={(node) => this.dom.search = node}
-                                    timeout={100}
-                                    allowCollapsed={false}
-                                />
-                            )
-                        }
+                            <SearchBar
+                                onSearch={this.filterSearchResults}
+                                minLength={1}
+                                extendOnOpen={true}
+                                ref={(node) => this.dom.search = node}
+                                timeout={100}
+                                allowCollapsed={false}
+                            />
+                        )}
                     </div>
                     <ul className="dropdown-menu Select__popup__list" ref={(node) => this.dom.list = node}>
                         {this.state.filteredList.map((opt, index) => (
@@ -338,6 +339,7 @@ SelectFieldPopup.propTypes = {
         value: PropTypes.object,
     })),
     target: PropTypes.string,
+    popupContainer: PropTypes.func,
 };
 
 SelectFieldPopup.defaultProps = {
