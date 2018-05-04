@@ -2,7 +2,7 @@ import {get} from 'lodash';
 import planning from './index';
 import {lockUtils, gettext} from '../../utils';
 import * as selectors from '../../selectors';
-import {showModal, hideModal, events} from '../index';
+import {showModal, hideModal, events, fetchAgendas} from '../index';
 import main from '../main';
 import {PLANNING, MODALS} from '../../constants';
 import eventsPlanning from '../eventsPlanning';
@@ -55,6 +55,9 @@ const onPlanningUpdated = (_e, data) => (
                     }
 
                     dispatch(eventsPlanning.ui.scheduleRefetch());
+                    if (get(data, 'added_agendas.length', 0) > 0 || get(data, 'removed_agendas.length', 0) > 0) {
+                        dispatch(fetchAgendas());
+                    }
                 });
         }
 
@@ -148,7 +151,7 @@ const onPlanningUnlocked = (_e, data) => (
     }
 );
 
-const onPlanningPublished = (_e, data) => (
+const onPlanningPosted = (_e, data) => (
     (dispatch) => {
         if (get(data, 'item')) {
             dispatch(planning.ui.scheduleRefetch());
@@ -169,7 +172,7 @@ const onPlanningSpiked = (_e, data) => (
                     state: data.state,
                     revert_state: data.revert_state,
                     etag: data.etag,
-                }
+                },
             });
 
             dispatch(main.closePreviewAndEditorForItems(
@@ -196,7 +199,7 @@ const onPlanningUnspiked = (_e, data) => (
                     id: data.item,
                     state: data.state,
                     etag: data.etag,
-                }
+                },
             });
 
             dispatch(main.closePreviewAndEditorForItems(
@@ -234,7 +237,8 @@ const onCoverageCancelled = (e, data) => (
                 data.planning_item,
                 get(data, 'reason'),
                 get(data, 'coverage_state'),
-                data.ids
+                data.ids,
+                get(data, 'etag')
             ));
         }
     }
@@ -264,7 +268,7 @@ const self = {
     onPlanningCreated,
     onPlanningUpdated,
     onPlanningUnlocked,
-    onPlanningPublished,
+    onPlanningPosted,
     onPlanningSpiked,
     onPlanningUnspiked,
     onPlanningCancelled,
@@ -282,7 +286,7 @@ self.events = {
     'planning:unspiked': () => (self.onPlanningUnspiked),
     'planning:lock': () => (self.onPlanningLocked),
     'planning:unlock': () => (self.onPlanningUnlocked),
-    'planning:published': () => (self.onPlanningPublished),
+    'planning:posted': () => (self.onPlanningPosted),
     'planning:duplicated': () => (self.onPlanningCreated),
     'planning:cancelled': () => (self.onPlanningCancelled),
     'coverage:cancelled': () => (self.onCoverageCancelled),

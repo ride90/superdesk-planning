@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import moment from 'moment';
 import {LineInput, Label, Input} from '../';
 import {TimeInputPopup} from './TimeInputPopup';
+import {IconButton} from '../../';
 import {KEYCODES} from '../../../../constants';
 import './style.scss';
 
@@ -94,17 +95,17 @@ export class TimeInput extends React.Component {
     }
 
     render() {
-        const {placeholder, field, label, value, readOnly, popupContainer, ...props} = this.props;
+        const {placeholder, field, label, value, readOnly, popupContainer, onFocus, ...props} = this.props;
 
         return (
             <LineInput {...props} readOnly={readOnly}>
                 <Label text={label} />
-                <a
-                    className="icn-btn sd-line-input__icon-right"
+                <IconButton
+                    className="sd-line-input__icon-right"
+                    icon="icon-time"
+                    onFocus={onFocus}
                     onClick={!readOnly ? this.toggleOpenTimePicker : null}
-                >
-                    <i className="icon-time" />
-                </a>
+                />
                 <Input
                     field={field}
                     value={this.state.viewValue}
@@ -113,6 +114,7 @@ export class TimeInput extends React.Component {
                     placeholder={placeholder}
                     onBlur={this.handleInputBlur}
                     readOnly={readOnly}
+                    onFocus={onFocus}
                     onKeyDown={(event) => {
                         if (event.keyCode === KEYCODES.ENTER) {
                             this.setState({openTimePicker: true});
@@ -154,6 +156,7 @@ TimeInput.propTypes = {
     boxed: PropTypes.bool,
     noMargin: PropTypes.bool,
     popupContainer: PropTypes.func,
+    onFocus: PropTypes.func,
 };
 
 TimeInput.defaultProps = {

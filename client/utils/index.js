@@ -5,7 +5,7 @@ import thunkMiddleware from 'redux-thunk';
 import {createLogger} from 'redux-logger';
 import {get, set, map, cloneDeep, forEach} from 'lodash';
 import {
-    PUBLISHED_STATE,
+    POST_STATE,
     WORKFLOW_STATE,
     TOOLTIPS,
     ASSIGNMENTS,
@@ -19,6 +19,7 @@ import * as testData from './testData';
 import {gettext, gettextCatalog} from './gettext';
 import {default as lockUtils} from './locks';
 import {default as planningUtils} from './planning';
+import {default as timeUtils} from './time';
 
 
 export {default as checkPermission} from './checkPermission';
@@ -29,9 +30,11 @@ export {default as uiUtils} from './ui';
 export {default as assignmentUtils} from './assignments';
 export {default as stringUtils} from './strings';
 export {default as actionUtils} from './actions';
+export {default as editorMenuUtils} from './editorMenu';
 export {gettext, gettextCatalog};
 export {lockUtils};
 export {planningUtils};
+export {timeUtils};
 
 // Polyfill Promise.finally function as this was introduced in Chrome 63+
 import promiseFinally from 'promise.prototype.finally';
@@ -365,6 +368,7 @@ export const isItemCancelled = (item) => getItemWorkflowState(item) === WORKFLOW
 export const isItemRescheduled = (item) => getItemWorkflowState(item) === WORKFLOW_STATE.RESCHEDULED;
 export const isItemKilled = (item) => getItemWorkflowState(item) === WORKFLOW_STATE.KILLED;
 export const isItemPostponed = (item) => getItemWorkflowState(item) === WORKFLOW_STATE.POSTPONED;
+export const isExistingItem = (item) => !!get(item, '_id');
 
 export const getItemActionedStateLabel = (item) => {
     // Currently will cater for 'rescheduled from' scenario.
@@ -450,17 +454,17 @@ export const getItemWorkflowStateLabel = (item, field = 'state') => {
     }
 };
 
-export const getItemPublishedStateLabel = (item) => {
-    switch (getPublishedState(item)) {
-    case PUBLISHED_STATE.USABLE:
+export const getItemPostedStateLabel = (item) => {
+    switch (getPostedState(item)) {
+    case POST_STATE.USABLE:
         return {
             label: 'P',
-            labelVerbose: gettext('Published'),
+            labelVerbose: gettext('Posted'),
             iconType: 'success',
-            tooltip: TOOLTIPS.publishedState,
+            tooltip: TOOLTIPS.postedState,
         };
 
-    case PUBLISHED_STATE.CANCELLED:
+    case POST_STATE.CANCELLED:
         return {
             label: gettext('Cancelled'),
             iconType: 'yellow2',
@@ -470,8 +474,8 @@ export const getItemPublishedStateLabel = (item) => {
 
 export const isItemPublic = (item = {}) =>
     !!item && (typeof item === 'string' ?
-        item === PUBLISHED_STATE.USABLE || item === PUBLISHED_STATE.CANCELLED :
-        item.pubstatus === PUBLISHED_STATE.USABLE || item.pubstatus === PUBLISHED_STATE.CANCELLED);
+        item === POST_STATE.USABLE || item === POST_STATE.CANCELLED :
+        item.pubstatus === POST_STATE.USABLE || item.pubstatus === POST_STATE.CANCELLED);
 
 export const isItemSpiked = (item) => item ?
     getItemWorkflowState(item) === WORKFLOW_STATE.SPIKED : false;
@@ -490,7 +494,7 @@ export const shouldUnLockItem = (item, session, currentWorkspace) =>
  */
 export const getTimeZoneOffset = () => (moment().format('Z'));
 
-export const getPublishedState = (item) => get(item, 'pubstatus', null);
+export const getPostedState = (item) => get(item, 'pubstatus', null);
 
 export const sanitizeTextForQuery = (text) => (
     text.replace(/\//g, '\\/').replace(/[()]/g, '')
@@ -606,7 +610,7 @@ export const isDateInRange = (inputDate, startDate, endDate) => {
     return true;
 };
 
-export const getSearchDateRange = (currentSearch) => {
+export const getSearchDateRange = (currentSearch, startOfWeek) => {
     const dates = get(currentSearch, 'advancedSearch.dates', {});
     const dateRange = {startDate: null, endDate: null};
 
@@ -616,19 +620,23 @@ export const getSearchDateRange = (currentSearch) => {
     } else if (get(dates, 'range')) {
         let range = get(dates, 'range');
 
-        if (range === 'today') {
+        if (range === MAIN.DATE_RANGE.TODAY) {
             dateRange.startDate = moment(moment().format('YYYY-MM-DD'), 'YYYY-MM-DD', true);
             dateRange.endDate = dateRange.startDate.clone().add('86399', 'seconds');
-        }
+        } else if (range === MAIN.DATE_RANGE.TOMORROW) {
+            const tomorrow = moment().add(1, 'day');
 
-        if (range === 'last24') {
+            dateRange.startDate = moment(tomorrow.format('YYYY-MM-DD'), 'YYYY-MM-DD', true);
+            dateRange.endDate = tomorrow.clone().add('86399', 'seconds');
+        } else if (range === MAIN.DATE_RANGE.LAST_24) {
             dateRange.endDate = moment();
             dateRange.startDate = dateRange.endDate.clone().subtract('86400', 'seconds');
-        }
-
-        if (range === 'week') {
-            dateRange.startDate = moment(moment().format('YYYY-MM-DD'), 'YYYY-MM-DD', true);
-            dateRange.endDate = dateRange.startDate.clone().add('7', 'days');
+        } else if (range === MAIN.DATE_RANGE.THIS_WEEK) {
+            dateRange.endDate = timeUtils.getStartOfNextWeek(null, startOfWeek);
+            dateRange.startDate = dateRange.endDate.clone().subtract(7, 'days');
+        } else if (range === MAIN.DATE_RANGE.NEXT_WEEK) {
+            dateRange.endDate = timeUtils.getStartOfNextWeek(null, startOfWeek).add(7, 'days');
+            dateRange.startDate = dateRange.endDate.clone().subtract(7, 'days');
         }
     } else {
         if (get(dates, 'start')) {
@@ -663,7 +671,7 @@ export const getWorkFlowStateAsOptions = (activeFilter = null) => {
 
         workflowStateOptions.push({
             qcode: WORKFLOW_STATE[key],
-            name: WORKFLOW_STATE[key]
+            name: WORKFLOW_STATE[key],
         });
     });
 

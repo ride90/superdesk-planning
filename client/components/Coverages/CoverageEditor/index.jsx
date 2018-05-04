@@ -8,17 +8,17 @@ import {CoverageItem} from '../CoverageItem';
 import {CoverageForm} from './CoverageForm';
 import {CoverageFormHeader} from './CoverageFormHeader';
 
-import {planningUtils, gettext} from '../../../utils';
-import {WORKSPACE, COVERAGES} from '../../../constants';
+import {planningUtils, gettext, editorMenuUtils} from '../../../utils';
+import {COVERAGES} from '../../../constants';
 
 export const CoverageEditor = ({
+    index,
     field,
     value,
     users,
     desks,
     dateFormat,
     timeFormat,
-    currentWorkspace,
     remove,
     contentTypes,
     genres,
@@ -30,30 +30,33 @@ export const CoverageEditor = ({
     onDuplicateCoverage,
     onCancelCoverage,
     onAddCoverageToWorkflow,
+    onRemoveAssignment,
     readOnly,
     message,
     invalid,
     openComponent,
     defaultGenre,
-    ...props,
+    addNewsItemToPlanning,
+    navigation,
+    ...props
 }) => {
     // Coverage item actions
     let itemActions = [];
 
-    if (!readOnly && currentWorkspace === WORKSPACE.PLANNING) {
+    if (!readOnly && !addNewsItemToPlanning) {
         const duplicateActions = contentTypes
             .filter((contentType) => (
                 contentType.qcode !== get(value, 'planning.g2_content_type')
             ))
             .map((contentType) => ({
                 label: contentType.name,
-                callback: onDuplicateCoverage.bind(null, value, contentType.qcode)
+                callback: onDuplicateCoverage.bind(null, value, contentType.qcode),
             }));
 
         itemActions = [{
             label: gettext('Duplicate'),
             icon: 'icon-copy',
-            callback: onDuplicateCoverage.bind(null, value)
+            callback: onDuplicateCoverage.bind(null, value),
         },
         {
             label: gettext('Duplicate As'),
@@ -74,12 +77,12 @@ export const CoverageEditor = ({
                 itemActions.push({
                     label: gettext('Add to workflow'),
                     icon: 'icon-assign',
-                    callback: onAddCoverageToWorkflow.bind(null, value),
+                    callback: onAddCoverageToWorkflow.bind(null, value, index),
                 });
             }
         }
 
-        if (!get(value, 'assigned_to.assignment_id')) {
+        if (planningUtils.canRemoveCoverage(value)) {
             itemActions.push({
                 label: gettext('Remove coverage'),
                 icon: 'icon-trash',
@@ -88,12 +91,24 @@ export const CoverageEditor = ({
         }
     }
 
+    const onClose = editorMenuUtils.onItemClose(navigation, field);
+    const onOpen = editorMenuUtils.onItemOpen(navigation, field);
+    const forceScroll = editorMenuUtils.forceScroll(navigation, field);
+    const isOpen = editorMenuUtils.isOpen(navigation, field) || (openComponent || !props.item._id ||
+        isEqual(value, COVERAGES.DEFAULT_VALUE(newsCoverageStatus, props.item,
+            get(value, 'planning.g2_content_type'))));
+    const onFocus = editorMenuUtils.onItemFocus(navigation, field);
+
     const itemActionComponent = get(itemActions, 'length', 0) > 0 ?
         (
-            <ItemActionsMenu
-                className="side-panel__top-tools-right"
-                actions={itemActions} />
-        ) : null;
+            <div className="side-panel__top-tools-right">
+                <ItemActionsMenu
+                    actions={itemActions}
+                    onOpen={onFocus}
+                />
+            </div>
+        ) :
+        null;
 
     const coverageItem = (
         <CoverageItem
@@ -118,7 +133,9 @@ export const CoverageEditor = ({
             coverageProviders={coverageProviders}
             priorities={priorities}
             readOnly={readOnly}
-            currentWorkspace={currentWorkspace}
+            addNewsItemToPlanning={addNewsItemToPlanning}
+            onRemoveAssignment={onRemoveAssignment.bind(null, value, index)}
+            {...props}
         />
     );
 
@@ -136,9 +153,10 @@ export const CoverageEditor = ({
             readOnly={readOnly}
             message={message}
             invalid={invalid}
-            currentWorkspace={currentWorkspace}
             hasAssignment={planningUtils.isCoverageAssigned(value)}
             defaultGenre={defaultGenre}
+            addNewsItemToPlanning={addNewsItemToPlanning}
+            onFieldFocus={onFocus}
             {...props}
         />
     );
@@ -150,9 +168,11 @@ export const CoverageEditor = ({
             openItemTopBar={coverageTopBar}
             openItem={coverageForm}
             scrollInView={true}
-            isOpen={openComponent || !props.item._id ||
-                isEqual(value, COVERAGES.DEFAULT_VALUE(newsCoverageStatus, props.item))}
+            isOpen={isOpen}
             invalid={invalid}
+            forceScroll={forceScroll}
+            onClose={onClose}
+            onOpen={onOpen}
             tabEnabled
         />
     );
@@ -177,8 +197,6 @@ CoverageEditor.propTypes = {
     onDuplicateCoverage: PropTypes.func,
     onCancelCoverage: PropTypes.func,
     onAddCoverageToWorkflow: PropTypes.func,
-    currentWorkspace: PropTypes.string,
-
     message: PropTypes.oneOfType([
         PropTypes.string,
         PropTypes.object,
@@ -191,6 +209,10 @@ CoverageEditor.propTypes = {
     invalid: PropTypes.bool,
     openComponent: PropTypes.bool,
     defaultGenre: PropTypes.object,
+    addNewsItemToPlanning: PropTypes.object,
+    navigation: PropTypes.object,
+    onRemoveAssignment: PropTypes.func,
+    index: PropTypes.number,
 };
 
 CoverageEditor.defaultProps = {

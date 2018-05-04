@@ -1,8 +1,8 @@
 import * as selectors from '../selectors';
 import {cloneDeep, pick, get, sortBy} from 'lodash';
-import {PRIVILEGES, AGENDA, MODALS, ITEM_TYPE} from '../constants';
-import {checkPermission, getErrorMessage, isItemSpiked, gettext} from '../utils';
-import {planning, showModal} from './index';
+import {AGENDA, MODALS, ITEM_TYPE} from '../constants';
+import {getErrorMessage, isItemSpiked, gettext} from '../utils';
+import {planning, showModal, main} from './index';
 
 const openAgenda = () => (
     (dispatch) => (
@@ -18,7 +18,7 @@ const openAgenda = () => (
  * @param {string} name - The name of the Agenda to create
  * @return Promise
  */
-const _createOrUpdateAgenda = (newAgenda) => (
+const createOrUpdateAgenda = (newAgenda) => (
     (dispatch, getState, {api, notify}) => {
         let originalAgenda = {};
         const agendas = selectors.getAgendas(getState());
@@ -34,13 +34,11 @@ const _createOrUpdateAgenda = (newAgenda) => (
                 notify.success('The agenda has been created/updated.');
                 dispatch(addOrReplaceAgenda(agenda));
             }, (error) => {
-                let errorMessage = getErrorMessage(error);
-
-                if (!errorMessage && get(error, 'data._issues.name.unique') === 1) {
-                    errorMessage = 'An agenda with this name already exists';
-                }
+                let errorMessage = get(error, 'data._issues.name.unique') ?
+                    gettext('An agenda with this name already exists') : getErrorMessage(error);
 
                 notify.error(errorMessage);
+                return Promise.reject(error);
             });
     }
 );
@@ -101,7 +99,7 @@ const fetchAgendas = (query = {}) => (
         })
             .then((data) => {
                 dispatch(receiveAgendas(sortBy(data._items, [(a) =>
-                    a.name.toLowerCase()
+                    a.name.toLowerCase(),
                 ])));
             }, (error) => {
                 notify.error(getErrorMessage(
@@ -155,9 +153,11 @@ const askForAddEventToCurrentAgenda = (events) => (
  * Action dispatcher that creates a planning item from the supplied event,
  * then adds this to the currently selected agenda
  * @param {array} events - The event used to create the planning item
+ * @param {object} planningDate - The date to set for the new Planning item
+ * @param {boolean} openInEditor - If true, opens the new Planning item in the Editor
  * @return Promise
  */
-const _addEventToCurrentAgenda = (events, planningDate = null) => (
+const addEventToCurrentAgenda = (events, planningDate = null, openInEditor = false) => (
     (dispatch, getState, {notify}) => {
         const currentAgendaId = selectors.getCurrentAgendaId(getState());
 
@@ -201,6 +201,9 @@ const _addEventToCurrentAgenda = (events, planningDate = null) => (
             .then(() => {
                 notify.pop();
                 notify.success(gettext(`created ${eventsList.length} planning item.`));
+                return openInEditor ?
+                    dispatch(main.lockAndEdit(plannings[0])) :
+                    Promise.resolve(plannings[0]);
             })
             .then(() => dispatch(fetchSelectedAgendaPlannings()));
     }
@@ -209,9 +212,10 @@ const _addEventToCurrentAgenda = (events, planningDate = null) => (
 /**
  * Action dispatcher that creates a planning item from the supplied event,
  * @param {object} event - The event used to create the planning item
+ * @param {object} planningDate - The date to set for the new Planning item
  * @return Promise
  */
-const _createPlanningFromEvent = (event, planningDate) => (
+const createPlanningFromEvent = (event, planningDate) => (
     (dispatch, getState, {notify}) => {
         // Check if no agenda is selected, or the current agenda is spiked
         // And notify the end user of the error
@@ -235,7 +239,7 @@ const _createPlanningFromEvent = (event, planningDate) => (
             slugline: event.slugline,
             planning_date: planningDate || event._sortDate || event.dates.start,
             internal_note: event.internal_note,
-            headline: event.name,
+            name: event.name,
             place: event.place,
             subject: event.subject,
             anpa_category: event.anpa_category,
@@ -262,7 +266,7 @@ const fetchSelectedAgendaPlannings = (params = {}) => (
 
         const filters = {
             ...selectors.planning.getPlanningFilterParams(getState()),
-            ...params
+            ...params,
         };
 
         return dispatch(planning.ui.fetchToList(filters))
@@ -277,7 +281,7 @@ const fetchSelectedAgendaPlannings = (params = {}) => (
  * Action dispatcher that deletes agenda
  * @return promise
  */
-const _deleteAgenda = (agenda) => (
+const deleteAgenda = (agenda) => (
     (dispatch, getState, {api, notify}) => (
         api('agenda').remove(agenda)
             .then(() => {
@@ -289,42 +293,6 @@ const _deleteAgenda = (agenda) => (
                 ));
             })
     )
-);
-
-// Action Privileges
-/**
- * Action Dispatcher for creating or updating an Agenda
- * Also checks the permission if the user can do so
- * @return thunk function
- */
-const createOrUpdateAgenda = checkPermission(
-    _createOrUpdateAgenda,
-    PRIVILEGES.AGENDA_MANAGEMENT,
-    'Unauthorised to create or update an agenda!'
-);
-
-/**
- * Action Dispatcher for creating a Planning Item from an Event
- * and adding that to the current Agenda.
- * Also checks the permission if the user can do so
- * @return thunk function
- */
-const addEventToCurrentAgenda = checkPermission(
-    _addEventToCurrentAgenda,
-    PRIVILEGES.PLANNING_MANAGEMENT,
-    'Unauthorised to create a new planning item!'
-);
-
-const createPlanningFromEvent = checkPermission(
-    _createPlanningFromEvent,
-    PRIVILEGES.PLANNING_MANAGEMENT,
-    'Unauthorised to create a new planning item!'
-);
-
-const deleteAgenda = checkPermission(
-    _deleteAgenda,
-    PRIVILEGES.AGENDA_MANAGEMENT,
-    'Unauthorised to delete an agenda!'
 );
 
 // WebSocket Notifications

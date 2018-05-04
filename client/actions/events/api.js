@@ -1,11 +1,11 @@
 import {
     EVENTS,
     SPIKED_STATE,
-    PUBLISHED_STATE,
-    MAIN
+    POST_STATE,
+    MAIN,
 } from '../../constants';
 import {EventUpdateMethods} from '../../components/Events';
-import {get, isEqual, cloneDeep, pickBy, isNil, has} from 'lodash';
+import {get, isEqual, cloneDeep, pickBy, isNil, has, find} from 'lodash';
 import * as selectors from '../../selectors';
 import {
     eventUtils,
@@ -14,6 +14,7 @@ import {
     sanitizeTextForQuery,
     getErrorMessage,
     appendStatesQueryForAdvancedSearch,
+    timeUtils,
 } from '../../utils';
 import moment from 'moment';
 
@@ -44,7 +45,7 @@ const loadEventsByRecurrenceId = (
             spikeState: spikeState,
             page: page,
             maxResults: maxResults,
-            onlyFuture: false
+            onlyFuture: false,
         }))
             .then((items) => {
                 if (loadToStore) {
@@ -107,12 +108,15 @@ const unspike = (events) => (
 
 const getCriteria = (
     {
+        calendars,
+        noCalendarAssigned = false,
         advancedSearch = {},
         fulltext,
         recurrenceId,
         spikeState = SPIKED_STATE.NOT_SPIKED,
         onlyFuture = true,
-        must = []
+        must = [],
+        startOfWeek = 0,
     }
 ) => {
     let query = {};
@@ -164,11 +168,21 @@ const getCriteria = (
             },
         },
         {
-            condition: () => (advancedSearch.calendars),
+            condition: () => true,
             do: () => {
-                const codes = advancedSearch.calendars.map((cat) => cat.qcode);
+                if (calendars) {
+                    const numCalendars = get(calendars, 'length', 0);
 
-                must.push({terms: {'calendars.qcode': codes}});
+                    if (numCalendars > 1) {
+                        must.push({terms: {'calendars.qcode': calendars}});
+                    } else if (numCalendars === 1) {
+                        must.push({term: {'calendars.qcode': calendars[0]}});
+                    }
+                } else if (noCalendarAssigned) {
+                    mustNot.push({
+                        constant_score: {filter: {exists: {field: 'calendars'}}},
+                    });
+                }
             },
         },
         {
@@ -194,7 +208,7 @@ const getCriteria = (
                     let rangeType = get(advancedSearch, 'dates.range');
                     let dateFilters;
 
-                    if (rangeType === 'today') {
+                    if (rangeType === MAIN.DATE_RANGE.TODAY) {
                         dateFilters = {
                             filters: [
                                 // start date falls today
@@ -203,9 +217,9 @@ const getCriteria = (
                                         'dates.start': {
                                             gte: 'now/d',
                                             lt: 'now+24h/d',
-                                            time_zone: getTimeZoneOffset()
-                                        }
-                                    }
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
                                 },
                                 // end date falls today
                                 {
@@ -213,9 +227,9 @@ const getCriteria = (
                                         'dates.end': {
                                             gte: 'now/d',
                                             lt: 'now+24h/d',
-                                            time_zone: getTimeZoneOffset()
-                                        }
-                                    }
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
                                 },
                                 // today is between dates.start and dates.end
                                 {
@@ -225,24 +239,72 @@ const getCriteria = (
                                                 range: {
                                                     'dates.start': {
                                                         lt: 'now/d',
-                                                        time_zone: getTimeZoneOffset()
-                                                    }
-                                                }
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
                                             },
                                             {
                                                 range: {
                                                     'dates.end': {
                                                         gt: 'now+24h/d',
-                                                        time_zone: getTimeZoneOffset()
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
                         };
-                    } else if (rangeType === 'last24') {
+                    } else if (rangeType === MAIN.DATE_RANGE.TOMORROW) {
+                        dateFilters = {
+                            filters: [
+                                // start date falls tomorrow
+                                {
+                                    range: {
+                                        'dates.start': {
+                                            gte: 'now+24h/d',
+                                            lt: 'now+48h/d',
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
+                                },
+                                // end date falls today
+                                {
+                                    range: {
+                                        'dates.end': {
+                                            gte: 'now+24h/d',
+                                            lt: 'now+48h/d',
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
+                                },
+                                // today is between dates.start and dates.end
+                                {
+                                    and: {
+                                        filters: [
+                                            {
+                                                range: {
+                                                    'dates.start': {
+                                                        lt: 'now+24h/d',
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
+                                            },
+                                            {
+                                                range: {
+                                                    'dates.end': {
+                                                        gt: 'now+48h/d',
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        };
+                    } else if (rangeType === MAIN.DATE_RANGE.LAST_24) {
                         dateFilters = {
                             filters: [
                                 // start date in last 24 hours
@@ -251,9 +313,9 @@ const getCriteria = (
                                         'dates.start': {
                                             gte: 'now-24h',
                                             lt: 'now',
-                                            time_zone: getTimeZoneOffset()
-                                        }
-                                    }
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
                                 },
                                 // end date in last 24 hours
                                 {
@@ -261,9 +323,9 @@ const getCriteria = (
                                         'dates.end': {
                                             gte: 'now-24h',
                                             lt: 'now',
-                                            time_zone: getTimeZoneOffset()
-                                        }
-                                    }
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
                                 },
                                 // last 24 hours is between dates.start and dates.end
                                 {
@@ -273,45 +335,51 @@ const getCriteria = (
                                                 range: {
                                                     'dates.start': {
                                                         lt: 'now-24h',
-                                                        time_zone: getTimeZoneOffset()
-                                                    }
-                                                }
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
                                             },
                                             {
                                                 range: {
                                                     'dates.end': {
                                                         gt: 'now',
-                                                        time_zone: getTimeZoneOffset()
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
                         };
-                    } else if (rangeType === 'week') {
+                    } else if (rangeType === MAIN.DATE_RANGE.THIS_WEEK) {
+                        let startOfNextWeek = timeUtils.getStartOfNextWeek(null, startOfWeek);
+                        let startOfWeek = startOfNextWeek.clone().subtract(7, 'days');
+
+                        startOfWeek = startOfWeek.format('YYYY-MM-DD') + '||/d';
+                        startOfNextWeek = startOfNextWeek.format('YYYY-MM-DD') + '||/d';
+
                         dateFilters = {
                             filters: [
-                                // start date in next 7 days
+                                // start date in this week
                                 {
                                     range: {
                                         'dates.start': {
-                                            gte: 'now/d',
-                                            lt: 'now+7d/d',
-                                            time_zone: getTimeZoneOffset()
-                                        }
-                                    }
+                                            gte: startOfWeek,
+                                            lt: startOfNextWeek,
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
                                 },
-                                // end date in next 7 days
+                                // end date in this week
                                 {
                                     range: {
                                         'dates.end': {
-                                            gte: 'now/d',
-                                            lt: 'now+7d/d',
-                                            time_zone: getTimeZoneOffset()
-                                        }
-                                    }
+                                            gte: startOfWeek,
+                                            lt: startOfNextWeek,
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
                                 },
                                 // week is between dates.start and dates.end
                                 {
@@ -320,23 +388,77 @@ const getCriteria = (
                                             {
                                                 range: {
                                                     'dates.start': {
-                                                        lt: 'now/d',
-                                                        time_zone: getTimeZoneOffset()
-                                                    }
-                                                }
+                                                        lt: startOfWeek,
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
                                             },
                                             {
                                                 range: {
                                                     'dates.end': {
-                                                        gt: 'now+7d/d',
-                                                        time_zone: getTimeZoneOffset()
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
+                                                        gte: startOfNextWeek,
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        };
+                    } else if (rangeType === MAIN.DATE_RANGE.NEXT_WEEK) {
+                        let startOfNextWeek = timeUtils.getStartOfNextWeek(null, startOfWeek).add(7, 'days');
+                        let startOfWeek = startOfNextWeek.clone().subtract(7, 'days');
+
+                        startOfWeek = startOfWeek.format('YYYY-MM-DD') + '||/d';
+                        startOfNextWeek = startOfNextWeek.format('YYYY-MM-DD') + '||/d';
+
+                        dateFilters = {
+                            filters: [
+                                // start date in next week
+                                {
+                                    range: {
+                                        'dates.start': {
+                                            gte: startOfWeek,
+                                            lt: startOfNextWeek,
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
+                                },
+                                // end date in next week
+                                {
+                                    range: {
+                                        'dates.end': {
+                                            gte: startOfWeek,
+                                            lt: startOfNextWeek,
+                                            time_zone: getTimeZoneOffset(),
+                                        },
+                                    },
+                                },
+                                // next week is between dates.start and dates.end
+                                {
+                                    and: {
+                                        filters: [
+                                            {
+                                                range: {
+                                                    'dates.start': {
+                                                        lt: startOfWeek,
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
+                                            },
+                                            {
+                                                range: {
+                                                    'dates.end': {
+                                                        gt: startOfNextWeek,
+                                                        time_zone: getTimeZoneOffset(),
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
                         };
                     }
 
@@ -348,19 +470,19 @@ const getCriteria = (
                                 range: {
                                     'dates.start': {
                                         gte: advancedSearch.dates.start,
-                                        time_zone: getTimeZoneOffset()
-                                    }
-                                }
+                                        time_zone: getTimeZoneOffset(),
+                                    },
+                                },
                             },
                             {
                                 range: {
                                     'dates.end': {
                                         gte: advancedSearch.dates.start,
-                                        time_zone: getTimeZoneOffset()
-                                    }
-                                }
-                            }
-                        ]
+                                        time_zone: getTimeZoneOffset(),
+                                    },
+                                },
+                            },
+                        ],
                     };
                 } else if (!advancedSearch.dates.start && advancedSearch.dates.end) {
                     filter.or = {
@@ -369,19 +491,19 @@ const getCriteria = (
                                 range: {
                                     'dates.end': {
                                         lte: advancedSearch.dates.end,
-                                        time_zone: getTimeZoneOffset()
-                                    }
-                                }
+                                        time_zone: getTimeZoneOffset(),
+                                    },
+                                },
                             },
                             {
                                 range: {
                                     'dates.start': {
                                         lte: advancedSearch.dates.end,
-                                        time_zone: getTimeZoneOffset()
-                                    }
-                                }
-                            }
-                        ]
+                                        time_zone: getTimeZoneOffset(),
+                                    },
+                                },
+                            },
+                        ],
                     };
                 } else if (advancedSearch.dates.start && advancedSearch.dates.end) {
                     filter.or = {
@@ -390,13 +512,13 @@ const getCriteria = (
                                 range: {
                                     'dates.start': {
                                         gte: advancedSearch.dates.start,
-                                        time_zone: getTimeZoneOffset()
+                                        time_zone: getTimeZoneOffset(),
                                     },
                                     'dates.end': {
                                         lte: advancedSearch.dates.end,
-                                        time_zone: getTimeZoneOffset()
-                                    }
-                                }
+                                        time_zone: getTimeZoneOffset(),
+                                    },
+                                },
                             },
                             {
                                 and: {
@@ -405,20 +527,20 @@ const getCriteria = (
                                             range: {
                                                 'dates.start': {
                                                     lt: advancedSearch.dates.start,
-                                                    time_zone: getTimeZoneOffset()
-                                                }
-                                            }
+                                                    time_zone: getTimeZoneOffset(),
+                                                },
+                                            },
                                         },
                                         {
                                             range: {
                                                 'dates.end': {
                                                     gt: advancedSearch.dates.end,
-                                                    time_zone: getTimeZoneOffset()
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
+                                                    time_zone: getTimeZoneOffset(),
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
                             },
                             {
                                 or: {
@@ -428,23 +550,23 @@ const getCriteria = (
                                                 'dates.start': {
                                                     gte: advancedSearch.dates.start,
                                                     lte: advancedSearch.dates.end,
-                                                    time_zone: getTimeZoneOffset()
-                                                }
-                                            }
+                                                    time_zone: getTimeZoneOffset(),
+                                                },
+                                            },
                                         },
                                         {
                                             range: {
                                                 'dates.end': {
                                                     gte: advancedSearch.dates.start,
                                                     lte: advancedSearch.dates.end,
-                                                    time_zone: getTimeZoneOffset()
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        ]
+                                                    time_zone: getTimeZoneOffset(),
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
                     };
                 } else {
                     filter.range = {'dates.end': {gte: 'now/d', time_zone: getTimeZoneOffset()}};
@@ -466,11 +588,11 @@ const getCriteria = (
             },
         },
         {
-            condition: () => (advancedSearch.published),
+            condition: () => (advancedSearch.posted),
             do: () => {
-                must.push({term: {pubstatus: PUBLISHED_STATE.USABLE}});
+                must.push({term: {pubstatus: POST_STATE.USABLE}});
             },
-        }
+        },
     // loop over actions and performs if conditions are met
     ].forEach((action) => {
         if (action.condition()) {
@@ -497,6 +619,8 @@ const getCriteria = (
 /**
  * Action Dispatcher for query the api for events
  * You can provide one of the following parameters to fetch from the server
+ * @param {Array} calendars - List of Calendars to filter
+ * @param {boolean} noCalendarAssigned - Search for Events that have no Calendar assigned
  * @param {object} advancedSearch - Query parameters to send to the server
  * @param {object} fulltext - Full text search parameters
  * @param {Array} ids - An array of Event IDs to fetch
@@ -510,6 +634,8 @@ const getCriteria = (
  */
 const query = (
     {
+        calendars,
+        noCalendarAssigned = false,
         advancedSearch = {},
         fulltext,
         ids,
@@ -517,7 +643,7 @@ const query = (
         spikeState = SPIKED_STATE.NOT_SPIKED,
         onlyFuture = true,
         page = 1,
-        maxResults = MAIN.PAGE_SIZE
+        maxResults = MAIN.PAGE_SIZE,
     },
     storeTotal = false
 ) => (
@@ -548,14 +674,18 @@ const query = (
             }
         }
 
+        const startOfWeek = selectors.config.getStartOfWeek(getState());
         const criteria = self.getCriteria(
             {
+                calendars,
+                noCalendarAssigned,
                 advancedSearch,
                 fulltext,
                 recurrenceId,
                 spikeState,
                 onlyFuture,
-                must
+                must,
+                startOfWeek,
             });
 
         // Query the API and sort by date
@@ -563,11 +693,10 @@ const query = (
             page: page,
             max_results: maxResults,
             sort: '[("dates.start",1)]',
-            embedded: {files: 1},
             source: JSON.stringify({
                 query: criteria.query,
                 filter: criteria.filter,
-            })
+            }),
         })
         // convert dates to moment objects
             .then((data) => {
@@ -668,7 +797,7 @@ const loadRecurringEventsAndPlanningItems = (event, loadPlannings = true, loadEv
     }
 );
 
-const loadEventDataForAction = (event, loadPlanning = true, publish = false, loadEvents = true) => (
+const loadEventDataForAction = (event, loadPlanning = true, post = false, loadEvents = true) => (
     (dispatch) => (
         dispatch(self.loadRecurringEventsAndPlanningItems(event, loadPlanning, loadEvents))
             .then((relatedEvents) => {
@@ -681,7 +810,7 @@ const loadEventDataForAction = (event, loadPlanning = true, publish = false, loa
                     },
                     type: 'event',
                     _recurring: relatedEvents.events,
-                    _publish: publish,
+                    _post: post,
                     _events: [],
                     _originalEvent: event,
                     _plannings: relatedEvents.plannings,
@@ -827,7 +956,7 @@ const silentlyFetchEventsById = (ids, spikeState = SPIKED_STATE.NOT_SPIKED, save
                     // distinct ids
                     ids: ids.filter((v, i, a) => (a.indexOf(v) === i)),
                     spikeState: spikeState,
-                    onlyFuture: false
+                    onlyFuture: false,
                 }))
                     .then(
                         (items) => resolve(items),
@@ -937,12 +1066,12 @@ const postponeEvent = (event) => (
     )
 );
 
-const publish = (event) => (
+const post = (event) => (
     (dispatch, getState, {api}) => (
-        api.save('events_publish', {
+        api.save('events_post', {
             event: event._id,
             etag: event._etag,
-            pubstatus: PUBLISHED_STATE.USABLE,
+            pubstatus: POST_STATE.USABLE,
             update_method: get(event, 'update_method.value', EventUpdateMethods[0].value),
         })
     )
@@ -1010,16 +1139,16 @@ const fetchEventHistory = (eventId) => (
 );
 
 /**
- * Set event.pubstatus canceled and publish event.
+ * Set event.pubstatus canceled and post event.
  *
  * @param {Object} event
  */
-const unpublish = (event) => (
+const unpost = (event) => (
     (dispatch, getState, {api, notify}) => (
-        api.save('events_publish', {
+        api.save('events_post', {
             event: event._id,
             etag: event._etag,
-            pubstatus: PUBLISHED_STATE.CANCELLED,
+            pubstatus: POST_STATE.CANCELLED,
             update_method: get(event, 'update_method.value', EventUpdateMethods[0].value),
         })
     )
@@ -1049,7 +1178,7 @@ const _uploadFiles = (event) => (
                 url: getState().config.server.url + '/events_files/',
                 headers: {'Content-Type': 'multipart/form-data'},
                 data: {media: [file]},
-                arrayKey: ''
+                arrayKey: '',
             })
                 .then(
                     (file) => Promise.resolve(file.data),
@@ -1075,7 +1204,7 @@ const _saveLocation = (event) => (
             event.location = {
                 name: location.name,
                 qcode: location.guid,
-                address: location.address
+                address: location.address,
             };
 
             // external address might not be there.
@@ -1112,7 +1241,9 @@ const _save = (eventUpdates) => (
 
             // remove links if it contains only null values
             if (updates.links && updates.links.length > 0) {
-                updates.links = updates.links.filter((l) => (l));
+                updates.links = updates.links.filter(
+                    (l) => l && get(l, 'length', 0) > 0
+                );
                 if (!updates.links.length) {
                     delete updates.links;
                 }
@@ -1157,7 +1288,7 @@ const save = (event) => (
 
                 modifiedEvent.files = [
                     ...originalFiles.map((e) => e._id),
-                    ...newFiles.map((e) => e._id)
+                    ...newFiles.map((e) => e._id),
                 ];
 
                 return dispatch(self._save(modifiedEvent));
@@ -1229,6 +1360,25 @@ const fetchEventContactsByIds = (ids = []) => (
         })
 );
 
+const fetchCalendars = () => (
+    (dispatch, getState, {vocabularies}) => (
+        vocabularies.getVocabularies()
+            .then((vocabularies) => {
+                const vocab = find(vocabularies, {_id: 'event_calendars'});
+                const calendars = get(vocab, 'items') || [];
+
+                dispatch(self.receiveCalendars(calendars));
+
+                return Promise.resolve(calendars);
+            }, (error) => Promise.reject(error))
+    )
+);
+
+const receiveCalendars = (calendars) => ({
+    type: EVENTS.ACTIONS.RECEIVE_CALENDARS,
+    payload: calendars,
+});
+
 // eslint-disable-next-line consistent-this
 const self = {
     loadEventsByRecurrenceId,
@@ -1252,9 +1402,9 @@ const self = {
     queryLockedEvents,
     getEvent,
     loadAssociatedPlannings,
-    publish,
+    post,
     fetchEventHistory,
-    unpublish,
+    unpost,
     _uploadFiles,
     _save,
     save,
@@ -1265,6 +1415,8 @@ const self = {
     updateRepetitions,
     getEventContacts,
     fetchEventContactsByIds,
+    fetchCalendars,
+    receiveCalendars,
 };
 
 export default self;

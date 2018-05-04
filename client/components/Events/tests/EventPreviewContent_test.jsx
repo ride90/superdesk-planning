@@ -1,9 +1,11 @@
 import React from 'react';
+import sinon from 'sinon';
 import {mount} from 'enzyme';
 import {Provider} from 'react-redux';
 import {EventPreviewContent} from '../EventPreviewContent';
-import {getTestActionStore} from '../../../utils/testUtils';
+import {getTestActionStore, restoreSinonStub} from '../../../utils/testUtils';
 import {createTestStore, eventUtils} from '../../../utils';
+import eventsUi from '../../../actions/events/ui';
 
 import {FileInput, LinkInput} from '../../UI/Form';
 
@@ -23,15 +25,15 @@ describe('<EventPreviewContent />', () => {
             name: 'ACT',
             qcode: 'ACT',
             state: 'Australian Capital Territory',
-            world_region: 'Oceania'
+            world_region: 'Oceania',
         }],
         anpa_category: [{
             name: 'cat1',
-            qcode: 'cat1'
+            qcode: 'cat1',
         }],
         occur_status: {
             name: 'Planned, occurs certainly',
-            qcode: 'qcode1'
+            qcode: 'qcode1',
         },
         location: {
             name: 'location',
@@ -39,19 +41,19 @@ describe('<EventPreviewContent />', () => {
         },
         calendars: [{
             name: 'calender1',
-            qcode: 'calender1'
+            qcode: 'calender1',
         }],
         subject: [{
             name: 'sub1',
-            qcode: 'sub1'
+            qcode: 'sub1',
         }],
         files: [{
             filemeta: {media_id: 'file'},
             media: {
                 name: 'file1.jpg',
                 length: 1024,
-                content_type: 'video/ogg'
-            }
+                content_type: 'video/ogg',
+            },
         }],
         links: ['https://www.google.com'],
     };
@@ -80,6 +82,7 @@ describe('<EventPreviewContent />', () => {
         'DD/MM/YYYY', 'HH:mm');
 
     it('renders an event with all its details', () => {
+        sinon.stub(eventsUi, 'fetchEventWithFiles').returns({type: 'Test'});
         const wrapper = getWrapper();
 
         expect(wrapper.find('EventPreviewContentComponent').length).toBe(1);
@@ -90,6 +93,7 @@ describe('<EventPreviewContent />', () => {
         verifyDataRow(dataRows.at(2), 'Description', 'description');
         verifyDataRow(dataRows.at(3), 'Occurrence Status', 'Planned, occurs certainly');
         verifyDataRow(dataRows.at(4), 'Date', dateString);
+        verifyDataRow(dataRows.at(5), 'Calendars', 'calender1');
 
         let eventDetails = wrapper.find('.toggle-box').first();
 
@@ -99,12 +103,11 @@ describe('<EventPreviewContent />', () => {
             .find('.toggle-box__content')
             .find('.form__row');
 
-        verifyDataRow(eventDetailRows.at(0), 'Calendars', 'calender1');
-        verifyDataRow(eventDetailRows.at(1), 'Place', 'ACT');
-        verifyDataRow(eventDetailRows.at(2), 'Category', 'cat1');
-        verifyDataRow(eventDetailRows.at(3), 'Subject', 'sub1');
-        verifyDataRow(eventDetailRows.at(4), 'Long Description', 'long description');
-        verifyDataRow(eventDetailRows.at(5), 'Internal Note', 'internal note');
+        verifyDataRow(eventDetailRows.at(0), 'Place', 'ACT');
+        verifyDataRow(eventDetailRows.at(1), 'Category', 'cat1');
+        verifyDataRow(eventDetailRows.at(2), 'Subject', 'sub1');
+        verifyDataRow(eventDetailRows.at(3), 'Long Description', 'long description');
+        verifyDataRow(eventDetailRows.at(4), 'Internal Note', 'internal note');
 
         let files = wrapper.find('.toggle-box').at(1);
 
@@ -138,5 +141,6 @@ describe('<EventPreviewContent />', () => {
         const relPlan = relatedPlannings.find('span').first();
 
         expect(relPlan.text()).toBe('Planning2 created by firstname lastname in agenda TestAgenda2');
+        restoreSinonStub(eventsUi.fetchEventWithFiles);
     });
 });

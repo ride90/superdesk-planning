@@ -12,9 +12,9 @@ import {
 } from '../../utils';
 
 import * as selectors from '../../selectors';
-import {PLANNING, PRIVILEGES, SPIKED_STATE, WORKSPACE, MODALS, MAIN} from '../../constants';
+import {PLANNING, PRIVILEGES, SPIKED_STATE, WORKSPACE, MODALS, MAIN, COVERAGES, ASSIGNMENTS} from '../../constants';
 import * as actions from '../index';
-import {get, orderBy} from 'lodash';
+import {get, set, orderBy, cloneDeep} from 'lodash';
 
 /**
  * Action dispatcher that marks a Planning item as spiked
@@ -374,7 +374,7 @@ const refetch = () => (
  * Schedule the refetch to run after one second and avoid any other refetch
  */
 let nextRefetch = {
-    called: 0
+    called: 0,
 };
 const scheduleRefetch = () => (
     (dispatch) => (
@@ -458,34 +458,34 @@ const cancelAllCoverage = (plan) => (
     }
 );
 
-const openCancelPlanningModal = (plan, publish = false) => (
+const openCancelPlanningModal = (plan, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         plan,
         PLANNING.ITEM_ACTIONS.CANCEL_PLANNING.label,
         PLANNING.ITEM_ACTIONS.CANCEL_PLANNING.lock_action,
-        publish
+        post
     ))
 );
 
-const openCancelAllCoverageModal = (plan, publish = false) => (
+const openCancelAllCoverageModal = (plan, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         plan,
         PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.label,
         PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.lock_action,
-        publish
+        post
     ))
 );
 
 const _openActionModal = (plan,
     action,
     lockAction = null,
-    publish = false,
+    post = false,
     large = false
 ) => (
     (dispatch, getState, {notify}) => (
         dispatch(planningApi.lock(plan, lockAction))
             .then((lockedPlanning) => {
-                lockedPlanning._publish = publish;
+                lockedPlanning._post = post;
                 return dispatch(showModal({
                     modalType: MODALS.ITEM_ACTIONS_MODAL,
                     modalProps: {
@@ -667,8 +667,9 @@ const saveFromAuthoring = (plan) => (
                 const newsItem = get(selectors.general.modalProps(getState()), 'newsItem', null);
                 const coverages = orderBy(newPlan.coverages, ['firstcreated'], ['desc']);
                 const coverage = coverages[0];
+                const reassign = false;
 
-                return dispatch(actions.assignments.api.link(coverage.assigned_to, newsItem))
+                return dispatch(actions.assignments.api.link(coverage.assigned_to, newsItem, reassign))
                     .then(() => {
                         notify.success('Content linked to the planning item.');
                         dispatch(actions.actionInProgress(false));
@@ -714,6 +715,42 @@ const saveFromAuthoring = (plan) => (
     }
 );
 
+/**
+ * Action to update the values of a single Coverage so the Assignment is placed in the workflow
+ * @param {object} original - Original Planning item
+ * @param {object} updatedCoverage - Coverage to update (along with any coverage fields to update as well)
+ * @param {number} index - index of the Coverage in the coverages[] array
+ */
+const addCoverageToWorkflow = (original, updatedCoverage, index) => (
+    (dispatch) => {
+        const updates = {coverages: cloneDeep(original.coverages)};
+        const coverage = cloneDeep(updatedCoverage);
+
+        set(coverage, 'workflow_status', COVERAGES.WORKFLOW_STATE.ACTIVE);
+        set(coverage, 'assigned_to.state', ASSIGNMENTS.WORKFLOW_STATE.ASSIGNED);
+        updates.coverages[index] = coverage;
+
+        return dispatch(planningApi.save(updates, original));
+    }
+);
+
+/**
+ * Action to update the values of a single Coverage so the Assignment is placed in the workflow
+ * @param {object} original - Original Planning item
+ * @param {object} updatedCoverage - Coverage to update (along with any coverage fields to update as well)
+ * @param {number} index - index of the Coverage in the coverages[] array
+ */
+const removeAssignment = (original, updatedCoverage, index) => (
+    (dispatch) => {
+        const updates = {coverages: cloneDeep(original.coverages)};
+        const coverage = cloneDeep(updatedCoverage);
+
+        updates.coverages[index] = coverage;
+
+        return dispatch(planningApi.save(updates, original));
+    }
+);
+
 // eslint-disable-next-line consistent-this
 const self = {
     spike,
@@ -756,7 +793,9 @@ const self = {
     saveFromAuthoring,
     scheduleRefetch,
     assignToAgenda,
-    saveAndUnlockPlanning
+    saveAndUnlockPlanning,
+    addCoverageToWorkflow,
+    removeAssignment,
 };
 
 export default self;

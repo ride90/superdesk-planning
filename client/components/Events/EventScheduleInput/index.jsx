@@ -12,7 +12,10 @@ export class EventScheduleInput extends React.Component {
     constructor(props) {
         super(props);
 
-        this.state = {isAllDay: false};
+        this.state = {
+            isAllDay: false,
+            isMultiDay: false,
+        };
 
         this.onChange = this.onChange.bind(this);
         this.handleAllDayChange = this.handleAllDayChange.bind(this);
@@ -22,7 +25,10 @@ export class EventScheduleInput extends React.Component {
     componentWillMount() {
         const dates = get(this.props, 'item.dates') || {};
 
-        this.setState({isAllDay: eventUtils.isEventAllDay(dates.start, dates.end)});
+        this.setState({
+            isAllDay: eventUtils.isEventAllDay(dates.start, dates.end, true),
+            isMultiDay: !eventUtils.isEventSameDay(dates.start, dates.end),
+        });
     }
 
     onChange(field, value) {
@@ -73,7 +79,10 @@ export class EventScheduleInput extends React.Component {
 
         const changes = {'dates.start': value};
 
-        if (((startDate && this.state.isAllDay) || !startDate) && defaultDurationOnChange > 0) {
+        if (((startDate && this.state.isAllDay) || !startDate) &&
+            defaultDurationOnChange > 0 &&
+            !this.state.isMultiDay
+        ) {
             changes['dates.end'] = value.clone().add(defaultDurationOnChange, 'h');
         }
 
@@ -98,7 +107,10 @@ export class EventScheduleInput extends React.Component {
         const defaultDurationOnChange = get(this.props.formProfile, 'editor.dates.default_duration_on_change', 1);
         const changes = {'dates.end': value};
 
-        if (((endDate && this.state.isAllDay) || !endDate) && defaultDurationOnChange > 0) {
+        if (((endDate && this.state.isAllDay) || !endDate)
+            && defaultDurationOnChange > 0 &&
+            !this.state.isMultiDay
+        ) {
             changes['dates.start'] = value.clone().subtract(defaultDurationOnChange, 'h');
         }
 
@@ -107,12 +119,17 @@ export class EventScheduleInput extends React.Component {
 
     componentWillReceiveProps(nextProps) {
         const nextDates = get(nextProps, 'diff.dates') || {};
-        const isAllDay = eventUtils.isEventAllDay(nextDates.start, nextDates.end);
+        const isAllDay = eventUtils.isEventAllDay(nextDates.start, nextDates.end, true);
+        const isMultiDay = !eventUtils.isEventSameDay(nextDates.start, nextDates.end);
 
         const newState = {};
 
         if (isAllDay !== this.state.isAllDay) {
             newState.isAllDay = isAllDay;
+        }
+
+        if (isMultiDay !== this.state.isMultiDay) {
+            newState.isMultiDay = isMultiDay;
         }
 
         this.setState(newState);
@@ -140,14 +157,14 @@ export class EventScheduleInput extends React.Component {
 
             // If the initial values were all day, then set the end minutes to 55
             // So that the allDay toggle is turned off
-            if (eventUtils.isEventAllDay(newStart, newEnd)) {
+            if (eventUtils.isEventAllDay(newStart, newEnd, true)) {
                 newEnd.minutes(55);
             }
         }
 
         this.props.onChange({
             'dates.start': newStart,
-            'dates.end': newEnd
+            'dates.end': newEnd,
         }, null);
     }
 
@@ -198,10 +215,10 @@ export class EventScheduleInput extends React.Component {
                 schema: {
                     'dates.start': {required: true},
                     'dates.end': {required: true},
-                }
+                },
             },
             errors: errors,
-            showErrors: showErrors
+            showErrors: showErrors,
         };
 
         const toggleProps = {
@@ -210,7 +227,7 @@ export class EventScheduleInput extends React.Component {
             readOnly: readOnly,
             className: 'sd-line-input__input',
             labelLeftAuto: true,
-            defaultValue: false
+            defaultValue: false,
         };
 
         return (
@@ -263,7 +280,7 @@ export class EventScheduleInput extends React.Component {
                         onChange={this.handleAllDayChange}
                         field="dates.all_day"
                         label={gettext('All Day')}
-                        value={!!isAllDay}
+                        value={isAllDay}
 
                         {...toggleProps}
                     />
@@ -305,5 +322,5 @@ EventScheduleInput.defaultProps = {
     readOnly: false,
     showRepeat: true,
     showRepeatSummary: true,
-    showRepeatToggle: true
+    showRepeatToggle: true,
 };

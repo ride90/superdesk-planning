@@ -39,10 +39,10 @@ export const WORKFLOW_STATE = {
     CANCELLED: 'cancelled',
     RESCHEDULED: 'rescheduled',
     POSTPONED: 'postponed',
-    SPIKED: 'spiked'
+    SPIKED: 'spiked',
 };
 
-export const PUBLISHED_STATE = {
+export const POST_STATE = {
     USABLE: 'usable',
     CANCELLED: 'cancelled',
 };
@@ -84,7 +84,7 @@ export const ITEM_TYPE = {
     AUDIO: 'audio',
     GRAPHIC: 'graphic',
     COMPOSITE: 'composite',
-    UNKNOWN: 'unknown'
+    UNKNOWN: 'unknown',
 };
 
 export const TEMP_ID_PREFIX = 'tempId-';
@@ -93,5 +93,16 @@ export const TEMP_ID_PREFIX = 'tempId-';
 export const CLICK_DELAY = 250;
 
 export const USER_ACTIONS = {
-    SET_USER_PREFERNCES: 'SET_USER_PREFERNCES'
+    RECEIVE_USER_PREFERENCES: 'RECEIVE_USER_PREFERENCES',
+};
+
+export const ICON_COLORS = {
+    BLUE: 'icon--blue',
+    DARK_BLUE_GREY: 'icon--dark-blue-grey',
+    GRAY: 'icon--gray',
+    GREEN: 'icon--green',
+    LIGHT_BLUE: 'icon--light-blue',
+    RED: 'icon--red',
+    WHITE: 'icon--white',
+    YELLOW: 'icon--yellow',
 };

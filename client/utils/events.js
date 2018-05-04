@@ -1,7 +1,7 @@
 import {
     PRIVILEGES,
     WORKFLOW_STATE,
-    PUBLISHED_STATE,
+    POST_STATE,
     EVENTS,
     GENERIC_ITEM_ACTIONS,
 } from '../constants';
@@ -10,7 +10,7 @@ import {
     lockUtils,
     isItemSpiked,
     isItemPublic,
-    getPublishedState,
+    getPostedState,
     isItemCancelled,
     isItemRescheduled,
     isItemPostponed,
@@ -21,7 +21,7 @@ import {
 } from './index';
 import moment from 'moment';
 import RRule from 'rrule';
-import {get, map, isNil, sortBy, cloneDeep} from 'lodash';
+import {get, map, isNil, sortBy, cloneDeep, omitBy} from 'lodash';
 import {EventUpdateMethods} from '../components/Events';
 
 
@@ -30,13 +30,14 @@ import {EventUpdateMethods} from '../components/Events';
  * occupy entire day(s)
  * @param {moment} startingDate - A moment instance for the starting date/time
  * @param {moment} endingDate - A moment instance for the starting date/time
+ * @param {boolean} checkMultiDay - If true include multi-day in the check, otherwise must be single day only
  * @return {boolean} If the date/times occupy entire day(s)
  */
-const isEventAllDay = (startingDate, endingDate) => {
+const isEventAllDay = (startingDate, endingDate, checkMultiDay = false) => {
     const start = moment(startingDate).clone();
     const end = moment(endingDate).clone();
 
-    return start.isSame(end, 'day') &&
+    return (checkMultiDay || start.isSame(end, 'day')) &&
         start.isSame(start.clone().startOf('day'), 'minute') &&
         end.isSame(end.clone().endOf('day'), 'minute');
 };
@@ -48,7 +49,7 @@ const isEventSameDay = (startingDate, endingDate) => (
 const eventHasPlanning = (event) => get(event, 'planning_ids', []).length > 0;
 
 const isEventLocked = (event, locks) =>
-    !isNil(event) && (
+    !isNil(event) && locks && (
         event._id in locks.event ||
         get(event, 'recurrence_id') in locks.recurring
     );
@@ -181,22 +182,33 @@ const canCreatePlanningFromEvent = (event, session, privileges, locks) => (
         !isItemPostponed(event)
 );
 
-const canPublishEvent = (event, session, privileges, locks) => (
+const canCreateAndOpenPlanningFromEvent = (event, session, privileges, locks) => (
+    !isNil(event) &&
+        !isItemSpiked(event) &&
+        !!privileges[PRIVILEGES.PLANNING_MANAGEMENT] &&
+        !isEventLockRestricted(event, session, locks) &&
+        !isItemCancelled(event) &&
+        !isItemRescheduled(event) &&
+        !isItemPostponed(event) &&
+        !isEventLocked(event, locks)
+);
+
+const canPostEvent = (event, session, privileges, locks) => (
     !isNil(event) &&
         !!get(event, '_id') &&
         !isItemSpiked(event) &&
-        getPublishedState(event) !== PUBLISHED_STATE.USABLE &&
-        !!privileges[PRIVILEGES.PUBLISH_EVENT] &&
+        getPostedState(event) !== POST_STATE.USABLE &&
+        !!privileges[PRIVILEGES.POST_EVENT] &&
         !isEventLockRestricted(event, session, locks) &&
         !isItemCancelled(event) &&
         !isItemRescheduled(event)
 );
 
-const canUnpublishEvent = (event, session, privileges, locks) => (
+const canUnpostEvent = (event, session, privileges, locks) => (
     !isNil(event) && !isItemSpiked(event) &&
         !isEventLockRestricted(event, session, locks) &&
-        getPublishedState(event) === PUBLISHED_STATE.USABLE &&
-        !!privileges[PRIVILEGES.PUBLISH_EVENT] &&
+        getPostedState(event) === POST_STATE.USABLE &&
+        !!privileges[PRIVILEGES.POST_EVENT] &&
         !isItemRescheduled(event)
 );
 
@@ -206,6 +218,7 @@ const canCancelEvent = (event, session, privileges, locks) => (
         !isItemCancelled(event) &&
         !isEventLockRestricted(event, session, locks) &&
         !!privileges[PRIVILEGES.EVENT_MANAGEMENT] &&
+        !(getPostedState(event) === POST_STATE.USABLE && !privileges[PRIVILEGES.POST_EVENT]) &&
         !isItemRescheduled(event)
 );
 
@@ -232,13 +245,14 @@ const canEditEvent = (event, session, privileges, locks) => (
         !isItemCancelled(event) &&
         !isEventLockRestricted(event, session, locks) &&
         !!privileges[PRIVILEGES.EVENT_MANAGEMENT] &&
+        !(getPostedState(event) === POST_STATE.USABLE && !privileges[PRIVILEGES.POST_EVENT]) &&
         !isItemRescheduled(event)
 );
 
 const canUpdateEvent = (event, session, privileges, locks) => (
     canEditEvent(event, session, privileges, locks) &&
         isItemPublic(event) &&
-        !!privileges[PRIVILEGES.PUBLISH_EVENT]
+        !!privileges[PRIVILEGES.POST_EVENT]
 );
 
 const canUpdateEventTime = (event, session, privileges, locks) => (
@@ -255,6 +269,7 @@ const canRescheduleEvent = (event, session, privileges, locks) => (
         !isEventLockRestricted(event, session, locks) &&
         !!privileges[PRIVILEGES.EVENT_MANAGEMENT] &&
         !isItemRescheduled(event) &&
+        !(getPostedState(event) === POST_STATE.USABLE && !privileges[PRIVILEGES.POST_EVENT]) &&
         !isEventLockedForMetadataEdit(event)
 );
 
@@ -266,6 +281,7 @@ const canPostponeEvent = (event, session, privileges, locks) => (
         !!privileges[PRIVILEGES.EVENT_MANAGEMENT] &&
         !isItemPostponed(event) &&
         !isItemRescheduled(event) &&
+        !(getPostedState(event) === POST_STATE.USABLE && !privileges[PRIVILEGES.POST_EVENT]) &&
         !isEventLockedForMetadataEdit(event)
 );
 
@@ -290,6 +306,8 @@ const getEventItemActions = (event, session, privileges, actions, locks) => {
             canCancelEvent(event, session, privileges, locks),
         [EVENTS.ITEM_ACTIONS.CREATE_PLANNING.label]: () =>
             canCreatePlanningFromEvent(event, session, privileges, locks),
+        [EVENTS.ITEM_ACTIONS.CREATE_AND_OPEN_PLANNING.label]: () =>
+            canCreateAndOpenPlanningFromEvent(event, session, privileges, locks),
         [EVENTS.ITEM_ACTIONS.UPDATE_TIME.label]: () =>
             canUpdateEventTime(event, session, privileges, locks),
         [EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT.label]: () =>
@@ -301,7 +319,9 @@ const getEventItemActions = (event, session, privileges, actions, locks) => {
         [EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.label]: () =>
             canUpdateEventRepetitions(event, session, privileges, locks),
         [EVENTS.ITEM_ACTIONS.EDIT_EVENT.label]: () =>
-            canEditEvent(event, session, privileges, locks)
+            canEditEvent(event, session, privileges, locks),
+        [EVENTS.ITEM_ACTIONS.EDIT_EVENT_MODAL.label]: () =>
+            canEditEvent(event, session, privileges, locks),
     };
 
     actions.forEach((action) => {
@@ -370,7 +390,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.DUPLICATE,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -378,7 +398,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.SPIKE,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -386,7 +406,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.UNSPIKE,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -394,7 +414,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.CANCEL_EVENT,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -402,7 +422,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.POSTPONE_EVENT,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -410,7 +430,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.UPDATE_TIME,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -418,7 +438,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -426,7 +446,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -434,7 +454,7 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
                 });
             break;
 
@@ -442,65 +462,150 @@ const getEventActions = (item, session, privileges, lockedItems, callBacks, with
             callBacks[callBackName] &&
                 actions.push({
                     ...EVENTS.ITEM_ACTIONS.EDIT_EVENT,
-                    callback: callBacks[callBackName].bind(null, item)
+                    callback: callBacks[callBackName].bind(null, item),
+                });
+            break;
+
+        case EVENTS.ITEM_ACTIONS.EDIT_EVENT_MODAL.actionName:
+            callBacks[callBackName] &&
+                actions.push({
+                    ...EVENTS.ITEM_ACTIONS.EDIT_EVENT_MODAL,
+                    callback: callBacks[callBackName].bind(null, item, true),
                 });
             break;
         }
     });
 
+    const CREATE_PLANNING = callBacks[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName];
+    const CREATE_AND_OPEN_PLANNING = callBacks[EVENTS.ITEM_ACTIONS.CREATE_AND_OPEN_PLANNING.actionName];
+
     if (!withMultiPlanningDate || self.isEventSameDay(item)) {
-        callBacks[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName] && actions.push(
-            GENERIC_ITEM_ACTIONS.DIVIDER,
-            {
-                ...EVENTS.ITEM_ACTIONS.CREATE_PLANNING,
-                callback: callBacks[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName].bind(null, item),
+        if (CREATE_PLANNING || CREATE_AND_OPEN_PLANNING) {
+            actions.push(GENERIC_ITEM_ACTIONS.DIVIDER);
+
+            if (CREATE_PLANNING) {
+                actions.push({
+                    ...EVENTS.ITEM_ACTIONS.CREATE_PLANNING,
+                    callback: CREATE_PLANNING.bind(null, item, null, false),
+                });
             }
-        );
+
+            if (CREATE_AND_OPEN_PLANNING) {
+                actions.push({
+                    ...EVENTS.ITEM_ACTIONS.CREATE_AND_OPEN_PLANNING,
+                    callback: CREATE_AND_OPEN_PLANNING.bind(null, item, null, true),
+                });
+            }
+        }
     } else {
-        // Multi-day event with a requirement of a submeu
-        let eventCallBacks = [];
-        let pastEventCallBacks = [];
+        // Multi-day event with a requirement of a submenu
+        let subActions = {
+            create: {
+                current: [],
+                past: [],
+            },
+            createAndOpen: {
+                current: [],
+                past: [],
+            },
+        };
+
         let eventDate = moment(item.dates.start);
         const currentDate = moment();
 
-        for (; isDateInRange(eventDate, item.dates.start, item.dates.end);
-            eventDate.add(1, 'days')) {
+        for (; isDateInRange(eventDate, item.dates.start, item.dates.end); eventDate.add(1, 'days')) {
+            const label = '@ ' + eventDate.format('DD/MM/YYYY ') + item.dates.start.format('HH:mm');
+            const eventCallBack = CREATE_PLANNING.bind(null, item, moment(eventDate), false);
+            const openCallBack = CREATE_AND_OPEN_PLANNING &&
+                CREATE_AND_OPEN_PLANNING.bind(null, item, moment(eventDate), true);
+
             if (eventDate.isSameOrAfter(currentDate, 'date')) {
-                eventCallBacks.push({
-                    label: '@ ' + eventDate.format('DD/MM/YYYY ') +
-                            item.dates.start.format('HH:mm'),
-                    callback: callBacks[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName].bind(null, item,
-                        moment(eventDate)),
+                subActions.create.current.push({
+                    label: label,
+                    callback: eventCallBack,
+                });
+
+                openCallBack && subActions.createAndOpen.current.push({
+                    label: label,
+                    callback: openCallBack,
                 });
             } else {
-                pastEventCallBacks.push({
-                    label: '@ ' + eventDate.format('DD/MM/YYYY ') +
-                            item.dates.start.format('HH:mm'),
-                    callback: callBacks[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName].bind(null, item,
-                        moment(eventDate)),
+                subActions.create.past.push({
+                    label: label,
+                    callback: eventCallBack,
+                });
+
+                openCallBack && subActions.createAndOpen.past.push({
+                    label: label,
+                    callback: openCallBack,
                 });
             }
         }
 
         // Combine past and other events with a divider and heading
-        if (pastEventCallBacks.length > 0) {
-            eventCallBacks = [
-                ...eventCallBacks,
-                GENERIC_ITEM_ACTIONS.DIVIDER,
-                {
-                    ...GENERIC_ITEM_ACTIONS.LABEL,
-                    text: gettext('Past Events')
-                },
-                ...pastEventCallBacks];
+        if (subActions.create.past.length > 0) {
+            subActions.create.current = subActions.create.current.length === 0 ?
+                subActions.create.past :
+                [
+                    ...subActions.create.current,
+                    GENERIC_ITEM_ACTIONS,
+                    {
+                        ...GENERIC_ITEM_ACTIONS.LABEL,
+                        text: gettext('Past Events'),
+                    },
+                    ...subActions.create.past,
+                ];
         }
 
-        callBacks[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName] && actions.push(
-            GENERIC_ITEM_ACTIONS.DIVIDER,
-            {
-                ...EVENTS.ITEM_ACTIONS.CREATE_PLANNING,
-                callback: eventCallBacks,
+        if (subActions.createAndOpen.past.length > 0) {
+            subActions.createAndOpen.current = subActions.createAndOpen.current.length === 0 ?
+                subActions.createAndOpen.past :
+                [
+                    ...subActions.createAndOpen.current,
+                    GENERIC_ITEM_ACTIONS,
+                    {
+                        ...GENERIC_ITEM_ACTIONS.LABEL,
+                        text: gettext('Past Events'),
+                    },
+                    ...subActions.createAndOpen.past,
+                ];
+        }
+
+        if (CREATE_PLANNING || CREATE_AND_OPEN_PLANNING) {
+            actions.push(GENERIC_ITEM_ACTIONS.DIVIDER);
+        }
+
+        if (CREATE_PLANNING) {
+            if (subActions.create.current.length > 1) {
+                actions.push({
+                    ...EVENTS.ITEM_ACTIONS.CREATE_PLANNING,
+                    callback: subActions.create.current,
+                });
+            } else if (subActions.create.current.length === 1) {
+                actions.push({
+                    ...EVENTS.ITEM_ACTIONS.CREATE_PLANNING,
+                    callback: subActions.create.current[0].callback,
+                });
             }
-        );
+        }
+
+        if (CREATE_AND_OPEN_PLANNING) {
+            if (subActions.createAndOpen.current.length > 1) {
+                actions.push(
+                    {
+                        ...EVENTS.ITEM_ACTIONS.CREATE_AND_OPEN_PLANNING,
+                        callback: subActions.createAndOpen.current,
+                    }
+                );
+            } else if (subActions.createAndOpen.current.length === 1) {
+                actions.push(
+                    {
+                        ...EVENTS.ITEM_ACTIONS.CREATE_AND_OPEN_PLANNING,
+                        callback: subActions.createAndOpen.current[0].callback,
+                    }
+                );
+            }
+        }
     }
 
     return getEventItemActions(
@@ -593,7 +698,7 @@ const convertToMoment = (item) => {
         dates: {
             ...item.dates,
             start: get(item.dates, 'start') ? moment(item.dates.start) : null,
-            end: get(item.dates, 'end') ? moment(item.dates.end) : null
+            end: get(item.dates, 'end') ? moment(item.dates.end) : null,
         },
     };
 
@@ -604,6 +709,31 @@ const convertToMoment = (item) => {
     return newItem;
 };
 
+const duplicateEvent = (event, occurStatus) => {
+    let duplicatedEvent = cloneDeep(omitBy(event, (v, k) => (
+        k.startsWith('_')) ||
+        ['guid', 'unique_name', 'unique_id', 'lock_user', 'lock_time', 'lock_session', 'lock_action',
+            'pubstatus', 'recurrence_id', 'previous_recurrence_id', 'reschedule_from', 'reschedule_to',
+            'planning_ids'].indexOf(k) > -1));
+
+    // Delete recurring rule
+    if (duplicatedEvent.dates.recurring_rule) {
+        delete duplicatedEvent.dates.recurring_rule;
+    }
+
+    const daysBetween = moment().diff(duplicatedEvent.dates.start, 'days');
+
+    if (daysBetween > 0) {
+        // Add the delta to both start and end (to handle multi-day events)
+        duplicatedEvent.dates.start = duplicatedEvent.dates.start.add(daysBetween, 'days');
+        duplicatedEvent.dates.end = duplicatedEvent.dates.end.add(daysBetween, 'days');
+    }
+
+    duplicatedEvent.duplicate_from = event._id;
+    duplicatedEvent.occur_status = occurStatus;
+    return duplicatedEvent;
+};
+
 // eslint-disable-next-line consistent-this
 const self = {
     isEventAllDay,
@@ -612,8 +742,9 @@ const self = {
     canSpikeEvent,
     canUnspikeEvent,
     canCreatePlanningFromEvent,
-    canPublishEvent,
-    canUnpublishEvent,
+    canCreateAndOpenPlanningFromEvent,
+    canPostEvent,
+    canUnpostEvent,
     canEditEvent,
     canUpdateEvent,
     getEventItemActions,
@@ -632,7 +763,8 @@ const self = {
     getDateStringForEvent,
     getEventActions,
     getEventsByDate,
-    convertToMoment
+    convertToMoment,
+    duplicateEvent,
 };
 
 export default self;

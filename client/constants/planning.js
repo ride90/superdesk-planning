@@ -47,12 +47,12 @@ export const PLANNING = {
         SPIKE: {
             label: gettext('Spike'),
             icon: 'icon-trash',
-            actionName: 'onSpikePlanning'
+            actionName: 'onSpikePlanning',
         },
         UNSPIKE: {
             label: gettext('Unspike'),
             icon: 'icon-unspike',
-            actionName: 'onUnspikePlanning'
+            actionName: 'onUnspikePlanning',
         },
         DUPLICATE: {
             label: gettext('Duplicate'),
@@ -81,13 +81,24 @@ export const PLANNING = {
             label: gettext('Edit'),
             icon: 'icon-pencil',
             actionName: 'onEditPlanning',
-            lock_action: 'edit'
+            lock_action: 'edit',
+        },
+        EDIT_PLANNING_MODAL: {
+            label: gettext('Edit in popup'),
+            icon: 'icon-external',
+            actionName: 'onEditPlanningModal',
+            lock_action: 'edit',
         },
         ASSIGN_TO_AGENDA: {
             label: gettext('Assign to agenda'),
             icon: 'icon-list-plus',
             actionName: 'onAssignToAgenda',
-        }
+        },
+        ADD_COVERAGE: {
+            label: gettext('Add coverage'),
+            icon: 'icon-plus-small',
+            actionName: 'onAddCoverage',
+        },
     },
     NEWS_COVERAGE_CANCELLED_STATUS: {
         qcode: 'ncostat:notint',
@@ -95,14 +106,14 @@ export const PLANNING = {
         label: 'Not planned',
     },
     G2_CONTENT_TYPE: {
-        TEXT: 'text',
-        VIDEO: 'video',
-        LIVE_VIDEO: 'live_video',
-        AUDIO: 'audio',
-        PICTURE: 'picture',
+        TEXT: gettext('text'),
+        VIDEO: gettext('video'),
+        LIVE_VIDEO: gettext('live_video'),
+        AUDIO: gettext('audio'),
+        PICTURE: gettext('picture'),
     },
     DEFAULT_VALUE: {
         type: 'planning',
         planning_date: moment(),
-    }
+    },
 };

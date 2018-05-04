@@ -8,7 +8,7 @@ import {Row} from '../UI/Preview';
 import {
     AuditInformation,
     RelatedPlannings,
-    StateLabel
+    StateLabel,
 } from '../index';
 import {EventScheduleSummary} from './';
 import {ToggleBox} from '../UI';
@@ -18,6 +18,7 @@ import {LinkInput, FileInput} from '../UI/Form';
 import {ContactInfoContainer} from '../index';
 import {Location} from '../Location';
 import eventsApi from '../../actions/events/api';
+import eventsUi from '../../actions/events/ui';
 
 export class EventPreviewContentComponent extends React.Component {
     constructor(props) {
@@ -41,6 +42,10 @@ export class EventPreviewContentComponent extends React.Component {
         }
     }
 
+    componentWillMount() {
+        this.props.fetchEventWithFiles(this.props.item);
+    }
+
     componentDidMount() {
         this.fetchEventContacts(this.props.item['event_contact_info']);
     }
@@ -51,7 +56,7 @@ export class EventPreviewContentComponent extends React.Component {
                 .then(this.getResponseResult)
                 .then((results) => {
                     this.setState({
-                        filteredContacts: results
+                        filteredContacts: results,
                     });
                 });
         }, 500);
@@ -76,7 +81,7 @@ export class EventPreviewContentComponent extends React.Component {
 
     closeDetails() {
         this.setState({
-            showContactInfo: false
+            showContactInfo: false,
         });
     }
 
@@ -88,7 +93,7 @@ export class EventPreviewContentComponent extends React.Component {
             timeFormat,
             dateFormat,
             createUploadLink,
-            streetMapUrl
+            streetMapUrl,
         } = this.props;
         const createdBy = getCreator(item, 'original_creator', users);
         const updatedBy = getCreator(item, 'version_creator', users);
@@ -97,7 +102,7 @@ export class EventPreviewContentComponent extends React.Component {
         const versionCreator = get(updatedBy, 'display_name') ? updatedBy :
             users.find((user) => user._id === updatedBy);
 
-        const calendarsText = get(item, 'calendars.length', 0) === 0 ? '' :
+        const calendarsText = get(item, 'calendars.length', 0) === 0 ? gettext('No calendars assigned.') :
             item.calendars.map((c) => c.name).join(', ');
         const placeText = get(item, 'place.length', 0) === 0 ? '' :
             item.place.map((c) => c.name).join(', ');
@@ -152,6 +157,13 @@ export class EventPreviewContentComponent extends React.Component {
                     value={get(item, 'occur_status.name', '')}
                 />
                 <EventScheduleSummary schedule={item.dates} timeFormat={timeFormat} dateFormat={dateFormat}/>
+
+                <Row
+                    enabled={get(formProfile, 'editor.calendars.enabled')}
+                    label={gettext('Calendars')}
+                    value={calendarsText}
+                />
+
                 <Row
                     enabled={get(formProfile, 'editor.location.enabled')}
                     label={gettext('Location')}
@@ -182,10 +194,13 @@ export class EventPreviewContentComponent extends React.Component {
                                     </List.Row>
                                 </List.Column>
                                 <List.ActionMenu>
-                                    <span data-sd-tooltip="View Details" data-flow="left"
-                                        onClick={this.viewContactDetails.bind(this, contact)}>
+                                    <button
+                                        data-sd-tooltip="View Details"
+                                        data-flow="left"
+                                        onClick={this.viewContactDetails.bind(this, contact)}
+                                    >
                                         <i className="icon-external" />
-                                    </span>
+                                    </button>
                                 </List.ActionMenu>
                             </List.Item>
                         ))
@@ -198,12 +213,6 @@ export class EventPreviewContentComponent extends React.Component {
                 </Row>
 
                 <ToggleBox title={gettext('Details')} isOpen={false}>
-                    <Row
-                        enabled={get(formProfile, 'editor.calendars.enabled')}
-                        label={gettext('Calendars')}
-                        value={calendarsText}
-                    />
-
                     <Row
                         enabled={get(formProfile, 'editor.place.enabled')}
                         label={gettext('Place')}
@@ -286,6 +295,7 @@ EventPreviewContentComponent.propTypes = {
     createUploadLink: PropTypes.func,
     fetchContacts: PropTypes.func,
     streetMapUrl: PropTypes.string,
+    fetchEventWithFiles: PropTypes.func,
 };
 
 const mapStateToProps = (state, ownProps) => ({
@@ -298,11 +308,12 @@ const mapStateToProps = (state, ownProps) => ({
     dateFormat: selectors.config.getDateFormat(state),
     formProfile: selectors.forms.eventProfile(state),
     createUploadLink: (f) => selectors.config.getServerUrl(state) + '/upload/' + f.filemeta.media_id + '/raw',
-    streetMapUrl: selectors.config.getStreetMapUrl(state)
+    streetMapUrl: selectors.config.getStreetMapUrl(state),
 });
 
 const mapDispatchToProps = (dispatch) => ({
     fetchContacts: (ids) => dispatch(eventsApi.fetchEventContactsByIds(ids || [])),
+    fetchEventWithFiles: (event) => dispatch(eventsUi.fetchEventWithFiles(event)),
 });
 
 export const EventPreviewContent = connect(mapStateToProps, mapDispatchToProps)(EventPreviewContentComponent);

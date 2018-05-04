@@ -3,10 +3,6 @@
         min-width: 200px;
         min-height: 153px;
 
-        .btn {
-            width: 100%;
-        }
-
         .avatar {
             display: inline-block;
             margin: 10px 0;
@@ -16,5 +12,9 @@
         figure, div {
             text-align: center;
         }
+    }
+
+    &__avatar--no-margin {
+        margin: 0 !important;
     }
 }

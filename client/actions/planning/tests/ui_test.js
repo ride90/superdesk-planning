@@ -405,7 +405,7 @@ describe('actions.planning.ui', () => {
         store.initialState.main.search.PLANNING.lastRequestParams = {
             agendas: ['a1'],
             noAgendaAssigned: false,
-            page: 1
+            page: 1,
         };
 
         restoreSinonStub(planningUi.loadMore);
@@ -417,7 +417,7 @@ describe('actions.planning.ui', () => {
         const expectedParams = {
             agendas: ['a1'],
             noAgendaAssigned: false,
-            page: 2
+            page: 2,
         };
 
         store.test(done, planningUi.loadMore())
@@ -440,7 +440,7 @@ describe('actions.planning.ui', () => {
         store.initialState.main.search.PLANNING.lastRequestParams = {
             agendas: ['a1'],
             noAgendaAssigned: false,
-            page: 1
+            page: 1,
         };
 
         restoreSinonStub(planningUi.loadMore);
@@ -452,7 +452,7 @@ describe('actions.planning.ui', () => {
         const expectedParams = {
             agendas: ['a1'],
             noAgendaAssigned: false,
-            page: 2
+            page: 2,
         };
 
         store.test(done, planningUi.loadMore())
@@ -595,7 +595,7 @@ describe('actions.planning.ui', () => {
         });
 
         it('calls save', () => {
-            store.dispatch(planningUi.saveFromAuthoring(data.plannings[0], {publish: false, unpublish: false}));
+            store.dispatch(planningUi.saveFromAuthoring(data.plannings[0], {post: false, unpost: false}));
             expect(planningApi.save.callCount).toBe(1);
             expect(planningApi.save.args[0]).toEqual([data.plannings[0]]);
         });
@@ -622,7 +622,7 @@ describe('actions.planning.ui', () => {
                 () => (Promise.reject(errorMessage))
             );
 
-            store.test(done, planningUi.saveFromAuthoring(data.plannings[0], {publish: false, unpublish: false}))
+            store.test(done, planningUi.saveFromAuthoring(data.plannings[0], {post: false, unpost: false}))
                 .then(() => { /* no-op */ }, () => {
                     expect(services.notify.error.callCount).toBe(1);
                     expect(services.notify.error.args[0]).toEqual(['Failed!']);
@@ -635,7 +635,7 @@ describe('actions.planning.ui', () => {
         });
 
         it('calls link and notifies user of success', (done) => (
-            store.test(done, planningUi.saveFromAuthoring(data.plannings[0], {publish: false, unpublish: false}))
+            store.test(done, planningUi.saveFromAuthoring(data.plannings[0], {post: false, unpost: false}))
                 .then(() => {
                     expect(planningApi.save.callCount).toBe(1);
                     expect(planningApi.save.args[0]).toEqual([data.plannings[0]]);
@@ -654,6 +654,7 @@ describe('actions.planning.ui', () => {
                             type: 'picture',
                             state: 'draft',
                         },
+                        false,
                     ]);
 
                     expect(services.notify.success.callCount).toBe(1);
@@ -747,5 +748,49 @@ describe('actions.planning.ui', () => {
                     done();
                 });
         });
+    });
+
+    it('addCoverageToWorkflow', (done) => {
+        const coverage = data.plannings[0].coverages[0];
+
+        store.test(done, planningUi.addCoverageToWorkflow(
+            data.plannings[0],
+            {
+                ...coverage,
+                planning: {
+                    ...coverage.planning,
+                    internal_note: 'Please cover this',
+                    g2_content_type: 'photo',
+                },
+            },
+            0
+        ))
+            .then(() => {
+                expect(planningApi.save.callCount).toBe(1);
+                expect(planningApi.save.args[0]).toEqual([
+                    {
+                        coverages: [
+                            {
+                                ...coverage,
+                                planning: {
+                                    ...coverage.planning,
+                                    internal_note: 'Please cover this',
+                                    g2_content_type: 'photo',
+                                },
+                                workflow_status: 'active',
+                                assigned_to: {
+                                    ...coverage.assigned_to,
+                                    state: 'assigned',
+                                },
+                            },
+                            data.plannings[0].coverages[1],
+                            data.plannings[0].coverages[2],
+                        ],
+                    },
+                    data.plannings[0],
+                ]);
+
+                done();
+            });
     });
 });

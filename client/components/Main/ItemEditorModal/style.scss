@@ -1,0 +1,29 @@
+.editorModal {
+    &__menu {
+        width: 33rem;
+        display: inline-block;
+        padding: 2rem;
+        overflow-y: auto;
+        height: 730px;
+    }
+
+    &__editor {
+        width: 67rem;
+        display: inline-block;
+        float: right;
+        overflow-y: hidden;
+        height: 730px;
+
+        &--no-full-height {
+            height: initial !important
+        }
+
+        &--content {
+            height: 682px;
+        }
+
+        &--padding-bottom {
+            padding-bottom: 520px; // Extra padding to allow elements to scroll to top of editor
+        }
+    }
+}

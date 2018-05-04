@@ -28,6 +28,18 @@ export class ToggleBox extends React.Component {
 
     toggle() {
         this.setState({isOpen: !this.state.isOpen});
+
+        if (this.state.isOpen && this.props.onClose) {
+            this.props.onClose();
+        } else if (this.props.onOpen) {
+            this.props.onOpen();
+        }
+    }
+
+    componentWillReceiveProps(nextProps) {
+        if (this.props.isOpen !== nextProps.isOpen) {
+            this.setState({isOpen: nextProps.isOpen});
+        }
     }
 
     scrollInView() {
@@ -37,10 +49,8 @@ export class ToggleBox extends React.Component {
     }
 
     componentDidUpdate(prevProps, prevState) {
-        // Scroll into view only upon first opening
-        if (prevState.isOpen !== this.state.isOpen &&
-            this.state.isOpen &&
-            this.props.scrollInView
+        if ((prevState.isOpen !== this.state.isOpen && this.props.scrollInView) ||
+            this.props.forceScroll && this.props.forceScroll !== prevProps.forceScroll
         ) {
             this.scrollInView();
         }
@@ -54,6 +64,7 @@ export class ToggleBox extends React.Component {
             hideUsingCSS,
             invalid,
             noMargin,
+            paddingTop,
         } = this.props;
 
         return (
@@ -65,19 +76,24 @@ export class ToggleBox extends React.Component {
                         hidden: !this.state.isOpen,
                         'toggle-box--invalid': invalid,
                         'toggle-box--no-margin': noMargin,
+                        'toggle-box--padding-top': paddingTop,
                     }
                 )}
                 ref={(node) => this.dom.node = node}
             >
-                <div className="toggle-box__header"
+                <a
+                    className="toggle-box__header"
                     onClick={this.toggle}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={this.handleKeyDown}>
-                    <div className="toggle-box__chevron"><i className="icon-chevron-right-thin"/></div>
+                    onKeyDown={this.handleKeyDown}
+                >
+                    <div className="toggle-box__chevron">
+                        <i className="icon-chevron-right-thin"/>
+                    </div>
                     <div className="toggle-box__label">{gettext(title)}</div>
                     <div className="toggle-box__line"/>
-                </div>
+                </a>
                 <div className="toggle-box__content-wraper">
                     {this.state.isOpen && !hideUsingCSS && (
                         <div className="toggle-box__content">
@@ -102,12 +118,17 @@ export class ToggleBox extends React.Component {
 ToggleBox.propTypes = {
     style: PropTypes.string,
     isOpen: PropTypes.bool,
+    onOpen: PropTypes.func,
+    onClose: PropTypes.func,
+    refNode: PropTypes.func,
     title: PropTypes.string.isRequired,
     children: PropTypes.node,
     scrollInView: PropTypes.bool,
     hideUsingCSS: PropTypes.bool,
     invalid: PropTypes.bool,
     noMargin: PropTypes.bool,
+    forceScroll: PropTypes.bool,
+    paddingTop: PropTypes.bool,
 };
 
 ToggleBox.defaultProps = {

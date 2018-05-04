@@ -1,6 +1,5 @@
 import sinon from 'sinon';
 import * as actions from '../agenda';
-import {PRIVILEGES} from '../../constants';
 import {createTestStore, registerNotifications} from '../../utils';
 import {cloneDeep} from 'lodash';
 import * as selectors from '../../selectors';
@@ -106,17 +105,15 @@ describe('agenda', () => {
             const item = {name: 'TestAgenda3'};
             const action = actions.createOrUpdateAgenda({name: item.name});
 
-            it('createOrUpdateAgenda saves and executes dispatches', (done) => {
-                initialState.privileges.planning_agenda_management = 1;
-                return action(dispatch, getState, {
+            it('createOrUpdateAgenda saves and executes dispatches', (done) => (
+                action(dispatch, getState, {
                     api,
                     notify,
-                    $timeout,
                 })
                     .then(() => {
                         expect(apiSpy.save.args[0]).toEqual([{}, item]);
                         expect(notify.success.args[0]).toEqual(['The agenda has been created/updated.']);
-                        expect(dispatch.args[1]).toEqual([{
+                        expect(dispatch.args[0]).toEqual([{
                             type: 'ADD_OR_REPLACE_AGENDA',
                             payload: {
                                 _id: 'a3',
@@ -130,34 +127,8 @@ describe('agenda', () => {
                         expect(error).toBe(null);
                         expect(error.stack).toBe(null);
                         done();
-                    });
-            });
-
-            it('createOrUpdateAgenda raises ACCESS_DENIED without permission', (done) => {
-                initialState.privileges.planning_agenda_management = 0;
-                return action(dispatch, getState, {
-                    api,
-                    notify,
-                    $timeout,
-                })
-                    .catch(() => {
-                        expect($timeout.callCount).toBe(1);
-                        expect(notify.error.args[0][0]).toBe(
-                            'Unauthorised to create or update an agenda!'
-                        );
-                        expect(dispatch.args[0]).toEqual([{
-                            type: PRIVILEGES.ACTIONS.ACCESS_DENIED,
-                            payload: {
-                                action: '_createOrUpdateAgenda',
-                                permission: PRIVILEGES.AGENDA_MANAGEMENT,
-                                errorMessage: 'Unauthorised to create or update an agenda!',
-                                args: [item],
-                            },
-                        }]);
-
-                        done();
-                    });
-            });
+                    })
+            ));
         });
 
         it('fetchAgendas', (done) => {
@@ -189,11 +160,8 @@ describe('agenda', () => {
         });
 
         describe('deleteAgenda', () => {
-            it('can be deleted if user has permission', (done) => {
-                initialState.privileges.planning_agenda_management = 1;
-                const action = actions.deleteAgenda(agendas[0]);
-
-                return action(dispatch, getState, {
+            it('calls api and notifies end user', (done) => (
+                actions.deleteAgenda(agendas[0])(dispatch, getState, {
                     api,
                     notify,
                 })
@@ -206,38 +174,10 @@ describe('agenda', () => {
                         expect(error).toBe(null);
                         expect(error.stack).toBe(null);
                         done();
-                    });
-            });
-
-            it('raises ACCESS_DENIED without permission', (done) => {
-                initialState.privileges.planning_agenda_management = 0;
-                const action = actions.deleteAgenda(agendas[0]);
-
-                return action(dispatch, getState, {
-                    api,
-                    notify,
-                    $timeout,
-                })
-                    .catch(() => {
-                        expect(notify.error.args[0][0]).toBe(
-                            'Unauthorised to delete an agenda!'
-                        );
-                        expect(dispatch.args[0]).toEqual([{
-                            type: PRIVILEGES.ACTIONS.ACCESS_DENIED,
-                            payload: {
-                                action: '_deleteAgenda',
-                                permission: PRIVILEGES.AGENDA_MANAGEMENT,
-                                errorMessage: 'Unauthorised to delete an agenda!',
-                                args: [agendas[0]],
-                            },
-                        }]);
-
-                        done();
-                    });
-            });
+                    })
+            ));
 
             it('remove agenda call fails', (done) => {
-                initialState.privileges.planning_agenda_management = 1;
                 apiSpy.remove = sinon.spy(() => (Promise.reject({ })));
                 const action = actions.deleteAgenda(agendas[0]);
 
@@ -340,7 +280,7 @@ describe('agenda', () => {
                         expect(services.$location.search.callCount).toBe(2);
                         expect(services.$location.search.args).toEqual([
                             ['agenda', 'a1'],
-                            ['searchParams', '{}']
+                            ['searchParams', '{}'],
                         ]);
 
                         expect(planningUi.fetchToList.callCount).toBe(1);
@@ -351,7 +291,8 @@ describe('agenda', () => {
                                 page: 1,
                                 advancedSearch: {},
                                 spikeState: 'draft',
-                                fulltext: 'hello world'
+                                fulltext: 'hello world',
+                                excludeRescheduledAndCancelled: false,
                             },
                         ]);
 
@@ -369,7 +310,7 @@ describe('agenda', () => {
                     name: 'ACT',
                     qcode: 'ACT',
                     state: 'Australian Capital Territory',
-                    world_region: 'Oceania'
+                    world_region: 'Oceania',
                 }];
                 events[0].ednote = 'Editorial note about this Event';
                 const action = actions.addEventToCurrentAgenda(events[0]);
@@ -386,7 +327,7 @@ describe('agenda', () => {
                                 event_item: events[0]._id,
                                 planning_date: events[0].dates.start,
                                 slugline: events[0].slugline,
-                                headline: events[0].name,
+                                name: events[0].name,
                                 subject: events[0].subject,
                                 anpa_category: events[0].anpa_category,
                                 description_text: 'Some event',
@@ -397,10 +338,10 @@ describe('agenda', () => {
                                     name: 'ACT',
                                     qcode: 'ACT',
                                     state: 'Australian Capital Territory',
-                                    world_region: 'Oceania'
+                                    world_region: 'Oceania',
                                 }],
                                 internal_note: 'internal note',
-                                ednote: 'Editorial note about this Event'
+                                ednote: 'Editorial note about this Event',
                             },
                         ]);
 
@@ -409,35 +350,6 @@ describe('agenda', () => {
                     .catch((error) => {
                         expect(error).toBe(null);
                         expect(error.stack).toBe(null);
-                        done();
-                    });
-            });
-
-            it('addEventToCurrentAgenda raises ACCESS_DENIED without permission', (done) => {
-                initialState.privileges.planning_planning_management = 0;
-                const action = actions.addEventToCurrentAgenda(events[0]);
-
-                return action(dispatch, getState, {
-                    notify,
-                    $timeout,
-                })
-                    .catch(() => {
-                        expect($timeout.callCount).toBe(1);
-                        expect(notify.error.callCount).toBe(1);
-                        expect(notify.error.args[0]).toEqual([
-                            'Unauthorised to create a new planning item!',
-                        ]);
-                        expect(dispatch.callCount).toBe(1);
-                        expect(dispatch.args[0]).toEqual([{
-                            type: PRIVILEGES.ACTIONS.ACCESS_DENIED,
-                            payload: {
-                                action: '_addEventToCurrentAgenda',
-                                permission: PRIVILEGES.PLANNING_MANAGEMENT,
-                                errorMessage: 'Unauthorised to create a new planning item!',
-                                args: [events[0]],
-                            },
-                        }]);
-
                         done();
                     });
             });
@@ -524,7 +436,8 @@ describe('agenda', () => {
                             page: 1,
                             advancedSearch: {},
                             spikeState: 'draft',
-                            fulltext: 'hello world'
+                            fulltext: 'hello world',
+                            excludeRescheduledAndCancelled: false,
                         }]);
                         done();
                     });
@@ -542,7 +455,8 @@ describe('agenda', () => {
                             page: 1,
                             advancedSearch: {},
                             spikeState: 'draft',
-                            fulltext: ''
+                            fulltext: '',
+                            excludeRescheduledAndCancelled: false,
                         }]);
                         done();
                     });

@@ -21,7 +21,7 @@ export class CoverageForm extends React.Component {
         this.onScheduleChanged = this.onScheduleChanged.bind(this);
         this.dom = {
             contentType: null,
-            popupContainer: null
+            popupContainer: null,
         };
     }
 
@@ -78,11 +78,11 @@ export class CoverageForm extends React.Component {
             formProfile,
             errors,
             showErrors,
-            currentWorkspace,
             hasAssignment,
             defaultGenre,
             addNewsItemToPlanning,
             popupContainer,
+            onFieldFocus,
         } = this.props;
 
         const contentTypeQcode = get(value, 'planning.g2_content_type') || null;
@@ -100,13 +100,13 @@ export class CoverageForm extends React.Component {
             formProfile: formProfile,
             errors: errors,
             showErrors: showErrors,
+            onFocus: onFieldFocus,
         };
 
         const roFields = planningUtils.getCoverageReadOnlyFields(
             value,
             readOnly,
             newsCoverageStatus,
-            currentWorkspace,
             addNewsItemToPlanning
         );
 
@@ -233,11 +233,11 @@ CoverageForm.propTypes = {
     formProfile: PropTypes.object,
     errors: PropTypes.object,
     showErrors: PropTypes.bool,
-    currentWorkspace: PropTypes.string,
     hasAssignment: PropTypes.bool,
     defaultGenre: PropTypes.object,
     addNewsItemToPlanning: PropTypes.object,
     popupContainer: PropTypes.func,
+    onFieldFocus: PropTypes.func,
 };
 
 CoverageForm.defaultProps = {

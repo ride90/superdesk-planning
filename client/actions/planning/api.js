@@ -6,13 +6,16 @@ import {
     sanitizeTextForQuery,
     lockUtils,
     appendStatesQueryForAdvancedSearch,
+    timeUtils,
 } from '../../utils';
 import planningUtils from '../../utils/planning';
 import {
     PLANNING,
-    PUBLISHED_STATE,
+    POST_STATE,
     SPIKED_STATE,
-    MODALS, MAIN,
+    MODALS,
+    MAIN,
+    WORKFLOW_STATE,
 } from '../../constants';
 import main from '../main';
 
@@ -82,6 +85,8 @@ const getCriteria = ({
     advancedSearch = {},
     fulltext,
     adHocPlanning = false,
+    excludeRescheduledAndCancelled = false,
+    startOfWeek = 0,
 }) => {
     let query = {};
     let mustNot = [];
@@ -96,7 +101,7 @@ const getCriteria = ({
                     must.push({terms: {agendas: agendas}});
                 } else if (noAgendaAssigned) {
                     mustNot.push({
-                        constant_score: {filter: {exists: {field: 'agendas'}}}
+                        constant_score: {filter: {exists: {field: 'agendas'}}},
                     });
                 }
             },
@@ -119,9 +124,17 @@ const getCriteria = ({
             condition: () => (adHocPlanning),
             do: () => {
                 mustNot.push({
-                    constant_score: {filter: {exists: {field: 'event_item'}}}
+                    constant_score: {filter: {exists: {field: 'event_item'}}},
                 });
-            }
+            },
+        },
+        {
+            condition: () => (excludeRescheduledAndCancelled),
+            do: () => {
+                mustNot.push({
+                    terms: {state: [WORKFLOW_STATE.RESCHEDULED, WORKFLOW_STATE.CANCELLED]},
+                });
+            },
         },
         {
             condition: () => (!get(advancedSearch, 'dates')),
@@ -148,15 +161,25 @@ const getCriteria = ({
                 range[fieldName] = {time_zone: getTimeZoneOffset()};
                 let rangeType = get(advancedSearch, 'dates.range');
 
-                if (rangeType === 'today') {
+                if (rangeType === MAIN.DATE_RANGE.TODAY) {
                     range[fieldName].gte = 'now/d';
                     range[fieldName].lt = 'now+24h/d';
-                } else if (rangeType === 'last24') {
+                } else if (rangeType === MAIN.DATE_RANGE.TOMORROW) {
+                    range[fieldName].gte = 'now+24h/d';
+                    range[fieldName].lt = 'now+48h/d';
+                } else if (rangeType === MAIN.DATE_RANGE.LAST_24) {
                     range[fieldName].gte = 'now-24h';
                     range[fieldName].lt = 'now';
-                } else if (rangeType === 'week') {
-                    range[fieldName].gte = 'now/d';
-                    range[fieldName].lt = 'now+7d/d';
+                } else if (rangeType === MAIN.DATE_RANGE.THIS_WEEK) {
+                    const startOfNextWeek = timeUtils.getStartOfNextWeek(null, startOfWeek);
+
+                    range[fieldName].lt = startOfNextWeek.format('YYYY-MM-DD') + '||/d';
+                    range[fieldName].gte = startOfNextWeek.subtract(7, 'days').format('YYYY-MM-DD') + '||/d';
+                } else if (rangeType === MAIN.DATE_RANGE.NEXT_WEEK) {
+                    const startOfNextWeek = timeUtils.getStartOfNextWeek(null, startOfWeek).add(7, 'days');
+
+                    range[fieldName].lt = startOfNextWeek.format('YYYY-MM-DD') + '||/d';
+                    range[fieldName].gte = startOfNextWeek.subtract(7, 'days').format('YYYY-MM-DD') + '||/d';
                 } else {
                     if (get(advancedSearch, 'dates.start')) {
                         range[fieldName].gte = get(advancedSearch, 'dates.start');
@@ -255,11 +278,11 @@ const getCriteria = ({
             },
         },
         {
-            condition: () => (advancedSearch.published),
+            condition: () => (advancedSearch.posted),
             do: () => {
-                must.push({term: {pubstatus: PUBLISHED_STATE.USABLE}});
+                must.push({term: {pubstatus: POST_STATE.USABLE}});
             },
-        }
+        },
     ].forEach((action) => {
         if (action.condition()) {
             action.do();
@@ -294,20 +317,23 @@ const query = (
         advancedSearch = {},
         fulltext,
         maxResults = MAIN.PAGE_SIZE,
-        adHocPlanning = false
+        adHocPlanning = false,
+        excludeRescheduledAndCancelled = false,
     },
     storeTotal = true
 ) => (
     (dispatch, getState, {api}) => {
+        const startOfWeek = selectors.config.getStartOfWeek(getState());
         let criteria = self.getCriteria({
             spikeState,
             agendas,
             noAgendaAssigned,
             advancedSearch,
             fulltext,
-            adHocPlanning
+            adHocPlanning,
+            excludeRescheduledAndCancelled,
+            startOfWeek,
         });
-
 
         const sortField = '_planning_schedule.scheduled';
         const sortParams = {
@@ -670,8 +696,8 @@ const save = (item, original = undefined) => (
                 // item.coverages = []
                 let modifiedUpdates = cloneDeep(updates);
 
-                if (updates.pubstatus === PUBLISHED_STATE.USABLE) {
-                    // We are create&publishing from add-to-planning
+                if (updates.pubstatus === POST_STATE.USABLE) {
+                    // We are create&posting from add-to-planning
                     delete modifiedUpdates.pubstatus;
                     delete modifiedUpdates.state;
                 }
@@ -754,15 +780,15 @@ const duplicate = (plan) => (
 );
 
 /**
- * Set a Planning item as Published
+ * Set a Planning item as Posted
  * @param {string} plan - Planning item
  */
-const publish = (plan) => (
+const post = (plan) => (
     (dispatch, getState, {api}) => (
-        api.save('planning_publish', {
+        api.save('planning_post', {
             planning: plan._id,
             etag: plan._etag,
-            pubstatus: PUBLISHED_STATE.USABLE,
+            pubstatus: POST_STATE.USABLE,
         }).then(
             () => dispatch(self.fetchById(plan._id, {force: true})),
             (error) => Promise.reject(error)
@@ -771,15 +797,15 @@ const publish = (plan) => (
 );
 
 /**
- * Set a Planning item as not Published
+ * Set a Planning item as not Posted
  * @param {string} plan - Planning item ID
  */
-const unpublish = (plan) => (
+const unpost = (plan) => (
     (dispatch, getState, {api}) => (
-        api.save('planning_publish', {
+        api.save('planning_post', {
             planning: plan._id,
             etag: plan._etag,
-            pubstatus: PUBLISHED_STATE.CANCELLED,
+            pubstatus: POST_STATE.CANCELLED,
         })
     )
 );
@@ -847,13 +873,14 @@ const markPlanningCancelled = (plan, reason, coverageState, eventCancellation) =
     },
 });
 
-const markCoverageCancelled = (plan, reason, coverageState, ids) => ({
+const markCoverageCancelled = (plan, reason, coverageState, ids, etag) => ({
     type: PLANNING.ACTIONS.MARK_COVERAGE_CANCELLED,
     payload: {
         planning_item: plan,
         reason: reason,
         coverage_state: coverageState,
         ids: ids,
+        etag: etag,
     },
 });
 
@@ -960,8 +987,8 @@ const self = {
     fetchPlanningHistory,
     receivePlanningHistory,
     loadPlanningByEventId,
-    publish,
-    unpublish,
+    post,
+    unpost,
     refetch,
     duplicate,
     markPlanningCancelled,

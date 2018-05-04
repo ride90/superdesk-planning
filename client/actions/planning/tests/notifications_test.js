@@ -36,7 +36,7 @@ describe('actions.planning.notifications', () => {
             sinon.stub(planningNotifications, 'onPlanningUnlocked').callsFake(
                 () => (Promise.resolve())
             );
-            sinon.stub(planningNotifications, 'onPlanningPublished').callsFake(
+            sinon.stub(planningNotifications, 'onPlanningPosted').callsFake(
                 () => (Promise.resolve())
             );
             sinon.stub(planningNotifications, 'onPlanningSpiked').callsFake(
@@ -56,7 +56,7 @@ describe('actions.planning.notifications', () => {
             restoreSinonStub(planningNotifications.onPlanningUpdated);
             restoreSinonStub(planningNotifications.onPlanningLocked);
             restoreSinonStub(planningNotifications.onPlanningUnlocked);
-            restoreSinonStub(planningNotifications.onPlanningPublished);
+            restoreSinonStub(planningNotifications.onPlanningPosted);
             restoreSinonStub(planningNotifications.onPlanningSpiked);
             restoreSinonStub(planningNotifications.onPlanningUnspiked);
         });
@@ -127,12 +127,12 @@ describe('actions.planning.notifications', () => {
             }, delay);
         });
 
-        it('`planning:published` calls onPlanningPublished', (done) => {
-            $rootScope.$broadcast('planning:published', {item: 'p2'});
+        it('`planning:posted` calls onPlanningPosted', (done) => {
+            $rootScope.$broadcast('planning:posted', {item: 'p2'});
 
             setTimeout(() => {
-                expect(planningNotifications.onPlanningPublished.callCount).toBe(1);
-                expect(planningNotifications.onPlanningPublished.args[0][1]).toEqual({item: 'p2'});
+                expect(planningNotifications.onPlanningPosted.callCount).toBe(1);
+                expect(planningNotifications.onPlanningPosted.args[0][1]).toEqual({item: 'p2'});
 
                 done();
             }, delay);
@@ -169,7 +169,7 @@ describe('actions.planning.notifications', () => {
             store.initialState.main.filter = MAIN.FILTERS.PLANNING;
             return store.test(done, planningNotifications.onPlanningCreated({}, {
                 item: data.plannings[1]._id,
-                event_item: data.plannings[1].event_item
+                event_item: data.plannings[1].event_item,
             }))
                 .then(() => {
                     expect(eventsApi.markEventHasPlannings.callCount).toBe(1);
@@ -181,7 +181,7 @@ describe('actions.planning.notifications', () => {
                     expect(main.setUnsetLoadingIndicator.callCount).toBe(2);
                     expect(main.setUnsetLoadingIndicator.args).toEqual([
                         [true],
-                        [false]
+                        [false],
                     ]);
 
                     expect(planningUi.scheduleRefetch.callCount).toBe(1);
@@ -304,7 +304,7 @@ describe('actions.planning.notifications', () => {
         ));
     });
 
-    describe('onPlanningPublished', () => {
+    describe('onPlanningPosted', () => {
         beforeEach(() => {
             sinon.stub(eventsPlanningUi, 'refetch').callsFake(() => (Promise.resolve()));
         });
@@ -314,10 +314,10 @@ describe('actions.planning.notifications', () => {
             restoreSinonStub(eventsPlanningUi.refetch);
         });
 
-        it('onPlanningPublished calls fetchToList', (done) => {
+        it('onPlanningPosted calls fetchToList', (done) => {
             sinon.stub(planningUi, 'refetch').callsFake(() => (Promise.resolve()));
 
-            store.test(done, planningNotifications.onPlanningPublished({}, {item: 'p1'}))
+            store.test(done, planningNotifications.onPlanningPosted({}, {item: 'p1'}))
                 .then(() => {
                 // Reloads selected Agenda Plannings
                     expect(planningUi.refetch.callCount).toBe(1);
@@ -371,7 +371,7 @@ describe('actions.planning.notifications', () => {
                     expect(main.setUnsetLoadingIndicator.callCount).toBe(2);
                     expect(main.setUnsetLoadingIndicator.args).toEqual([
                         [true],
-                        [false]
+                        [false],
                     ]);
 
                     expect(planningUi.scheduleRefetch.callCount).toBe(1);
@@ -407,7 +407,7 @@ describe('actions.planning.notifications', () => {
                     expect(main.setUnsetLoadingIndicator.callCount).toBe(2);
                     expect(main.setUnsetLoadingIndicator.args).toEqual([
                         [true],
-                        [false]
+                        [false],
                     ]);
 
                     expect(planningUi.scheduleRefetch.callCount).toBe(1);

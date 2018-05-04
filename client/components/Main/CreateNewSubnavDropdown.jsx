@@ -9,7 +9,7 @@ export const CreateNewSubnavDropdown = ({addEvent, addPlanning, createPlanningOn
             label: gettext('Planning Item'),
             icon: 'icon-plus-sign icon--blue',
             action: addPlanning,
-        }
+        },
     ];
 
     if (!createPlanningOnly) {
@@ -26,6 +26,9 @@ export const CreateNewSubnavDropdown = ({addEvent, addPlanning, createPlanningOn
             label={gettext('Create new')}
             items={items}
             alignRight={true}
+            disableSelection={createPlanningOnly}
+            defaultAction={addPlanning}
+            tooltip={createPlanningOnly ? gettext('Create new planning item') : gettext('Create new item')}
         />
     );
 };

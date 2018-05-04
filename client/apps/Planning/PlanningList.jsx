@@ -42,7 +42,6 @@ export class PlanningListComponent extends React.Component {
             session,
             privileges,
             activeFilter,
-            currentWorkspace,
             onAddCoverageClick,
             selectedEventIds,
             selectedPlanningIds,
@@ -56,6 +55,8 @@ export class PlanningListComponent extends React.Component {
             openPreview,
             edit,
             itemActions,
+            hideItemActions,
+            showAddCoverage,
         } = this.props;
 
         return (
@@ -70,7 +71,6 @@ export class PlanningListComponent extends React.Component {
                 session={session}
                 privileges={privileges}
                 activeFilter={activeFilter}
-                currentWorkspace={currentWorkspace}
                 onAddCoverageClick={onAddCoverageClick}
                 onMultiSelectClick={this.handleItemSelection}
                 selectedEventIds={selectedEventIds}
@@ -83,6 +83,8 @@ export class PlanningListComponent extends React.Component {
                 desks={desks}
                 users={users}
                 itemActions={itemActions}
+                hideItemActions={hideItemActions}
+                showAddCoverage={showAddCoverage}
             />
         );
     }
@@ -100,7 +102,6 @@ PlanningListComponent.propTypes = {
     session: PropTypes.object,
     privileges: PropTypes.object,
     activeFilter: PropTypes.string.isRequired,
-    currentWorkspace: PropTypes.string,
     onAddCoverageClick: PropTypes.func,
     selectedEventIds: PropTypes.array,
     selectedPlanningIds: PropTypes.array,
@@ -114,6 +115,8 @@ PlanningListComponent.propTypes = {
     desks: PropTypes.array,
     users: PropTypes.array,
     itemActions: PropTypes.object,
+    hideItemActions: PropTypes.bool,
+    showAddCoverage: PropTypes.bool,
 };
 
 const mapStateToProps = (state) => ({
@@ -125,7 +128,6 @@ const mapStateToProps = (state) => ({
     session: selectors.getSessionDetails(state),
     privileges: selectors.getPrivileges(state),
     activeFilter: selectors.main.activeFilter(state),
-    currentWorkspace: selectors.getCurrentWorkspace(state),
     selectedEventIds: selectors.multiSelect.selectedEventIds(state),
     selectedPlanningIds: selectors.multiSelect.selectedPlanningIds(state),
     relatedPlanningsInList: selectors.eventsPlanning.getRelatedPlanningsInList(state),

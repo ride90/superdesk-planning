@@ -54,13 +54,13 @@ export class SelectTagInput extends React.Component {
                 this.setState({
                     inputText: '',
                     popupOpened: false,
-                    filteredOptions: this.getFilteredOptions(newValue)
+                    filteredOptions: this.getFilteredOptions(newValue),
                 });
             } else {
                 this.setState({
                     inputText: '',
                     popupOpened: false,
-                    filteredOptions: this.getFilteredOptions(this.props.value)
+                    filteredOptions: this.getFilteredOptions(this.props.value),
                 });
             }
         }
@@ -73,7 +73,7 @@ export class SelectTagInput extends React.Component {
 
         this.props.onChange(this.props.field, newValue);
         this.setState({
-            filteredOptions: this.getFilteredOptions(newValue)
+            filteredOptions: this.getFilteredOptions(newValue),
         });
     }
 
@@ -105,12 +105,12 @@ export class SelectTagInput extends React.Component {
         this.setState({
             inputText: value,
             popupOpened: true,
-            filteredOptions: this.getFilteredOptions(this.props.value, value)
+            filteredOptions: this.getFilteredOptions(this.props.value, value),
         });
     }
 
     render() {
-        const {label, value, labelKey, allowCustom, readOnly, invalid, required, ...props} = this.props;
+        const {label, value, labelKey, allowCustom, readOnly, invalid, required, onFocus, ...props} = this.props;
 
         return (
             <div>
@@ -146,6 +146,7 @@ export class SelectTagInput extends React.Component {
                                     this.openPopUp();
                                 }
                             }}
+                            onFocus={onFocus}
                         />
 
                         {this.state.popupOpened && (
@@ -179,6 +180,7 @@ SelectTagInput.propTypes = {
     readOnly: PropTypes.bool,
     invalid: PropTypes.bool,
     required: PropTypes.bool,
+    onFocus: PropTypes.func,
 };
 
 SelectTagInput.defaultProps = {

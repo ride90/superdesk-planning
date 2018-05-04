@@ -11,8 +11,11 @@ export class ListPanel extends React.Component {
         super(props);
         this.state = {
             isNextPageLoading: false,
-            scrollTop: 0
+            scrollTop: 0,
         };
+
+        this.dom = {list: null};
+
         this.handleScroll = this.handleScroll.bind(this);
         this.unsetNextPageLoading = this.unsetNextPageLoading.bind(this);
     }
@@ -21,8 +24,18 @@ export class ListPanel extends React.Component {
         if (get(nextProps, 'activeFilter') !== get(this.props, 'activeFilter')) {
             this.setState({
                 isNextPageLoading: false,
-                scrollTop: 0
+                scrollTop: 0,
             });
+        }
+
+        // If the list has finished loading, and is not for the next page,
+        // Then scroll the list to the top (Used to Advanced Filters and Calendar Navigation)
+        if (!get(nextProps, 'loadingIndicator') &&
+            !!get(this.props, 'loadingIndicator') &&
+            this.dom.list &&
+            !this.state.isNextPageLoading
+        ) {
+            this.dom.list.scrollTop = 0;
         }
     }
 
@@ -70,7 +83,6 @@ export class ListPanel extends React.Component {
             activeFilter,
             showRelatedPlannings,
             relatedPlanningsInList,
-            currentWorkspace,
             onMultiSelectClick,
             selectedEventIds,
             selectedPlanningIds,
@@ -78,6 +90,8 @@ export class ListPanel extends React.Component {
             loadingIndicator,
             users,
             desks,
+            showAddCoverage,
+            hideItemActions,
         } = this.props;
 
         return (
@@ -91,7 +105,9 @@ export class ListPanel extends React.Component {
                 />}
                 {groups.length > 0 &&
                 <div className="sd-column-box__main-column__items"
-                    onScroll={this.handleScroll}>
+                    onScroll={this.handleScroll}
+                    ref={(node) => this.dom.list = node}
+                >
                     {groups.map((group) => {
                         const listGroupProps = {
                             name: group.date,
@@ -108,13 +124,14 @@ export class ListPanel extends React.Component {
                             activeFilter: activeFilter,
                             showRelatedPlannings: showRelatedPlannings,
                             relatedPlanningsInList: relatedPlanningsInList,
-                            currentWorkspace: currentWorkspace,
                             onMultiSelectClick: onMultiSelectClick,
                             selectedEventIds: selectedEventIds,
                             selectedPlanningIds: selectedPlanningIds,
                             itemActions: itemActions,
                             users: users,
                             desks: desks,
+                            showAddCoverage: showAddCoverage,
+                            hideItemActions: hideItemActions,
                         };
 
                         return <ListGroup key={group.date} {...listGroupProps} />;
@@ -144,13 +161,14 @@ ListPanel.propTypes = {
     showRelatedPlannings: PropTypes.func,
     relatedPlanningsInList: PropTypes.object,
     loadMore: PropTypes.func.isRequired,
-    currentWorkspace: PropTypes.string,
     onAddCoverageClick: PropTypes.func,
     onMultiSelectClick: PropTypes.func,
     selectedEventIds: PropTypes.array,
     selectedPlanningIds: PropTypes.array,
     itemActions: PropTypes.object,
     filter: PropTypes.func,
-    loadingIndicator: PropTypes.bool
+    loadingIndicator: PropTypes.bool,
+    showAddCoverage: PropTypes.bool,
+    hideItemActions: PropTypes.bool,
 };
 

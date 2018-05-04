@@ -127,7 +127,7 @@ export class RescheduleEventComponent extends React.Component {
 
                 {numPlannings > 0 && (
                     <div>
-                        <div className="sd-alert sd-alert--hollow sd-alert--alert">
+                        <div className="sd-alert sd-alert--hollow sd-alert--alert sd-alert--flex-direction">
                             <strong>{gettext('This will mark as rescheduled the following planning items')}</strong>
                             <RelatedPlannings
                                 plannings={initialValues._plannings}
@@ -138,14 +138,14 @@ export class RescheduleEventComponent extends React.Component {
                 )}
 
                 {this.state.multiDayChanged && (
-                    <div className="sd-alert sd-alert--hollow sd-alert--alert">
+                    <div className="sd-alert sd-alert--hollow sd-alert--alert sd-alert--flex-direction">
                         <strong>{gettext(
                             'Event will be changed to a multi-day event!'
                         )}</strong>
                         <br />
                         {gettext('from {{from}} to {{to}}', {
                             from: getDateTimeString(this.state.diff.dates.start, dateFormat, timeFormat),
-                            to: getDateTimeString(this.state.diff.dates.end, dateFormat, timeFormat)
+                            to: getDateTimeString(this.state.diff.dates.end, dateFormat, timeFormat),
                         })}
                     </div>
                 )}
@@ -209,7 +209,7 @@ const mapDispatchToProps = (dispatch) => ({
     onSubmit: (event) => dispatch(actions.events.ui.rescheduleEvent(event)),
     onHide: (event) => dispatch(actions.events.api.unlock(event)),
 
-    onValidate: (item, profile, errors) => dispatch(validateItem('event', item, profile, errors, ['dates']))
+    onValidate: (item, profile, errors) => dispatch(validateItem('event', item, profile, errors, [], ['dates'])),
 });
 
 export const RescheduleEventForm = connect(

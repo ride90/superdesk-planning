@@ -6,9 +6,8 @@ import {
     EVENTS,
     PLANNING,
     ASSIGNMENTS,
-    PUBLISHED_STATE,
+    POST_STATE,
     COVERAGES,
-    WORKSPACE,
     ITEM_TYPE,
 } from '../constants/index';
 import {get, isNil, uniq, sortBy, isEmpty, cloneDeep} from 'lodash';
@@ -20,22 +19,23 @@ import {
     isItemRescheduled,
     eventUtils,
     isItemCancelled,
-    getPublishedState,
+    getPostedState,
     isEmptyActions,
     isDateInRange,
     gettext,
     getEnabledAgendas,
+    stringUtils,
 } from './index';
 import {stripHtmlRaw} from 'superdesk-core/scripts/apps/authoring/authoring/helpers';
 
 const isCoverageAssigned = (coverage) => !!get(coverage, 'assigned_to.desk');
 
-const canPublishPlanning = (planning, event, session, privileges, locks) => (
-    !!privileges[PRIVILEGES.PUBLISH_PLANNING] &&
+const canPostPlanning = (planning, event, session, privileges, locks) => (
+    !!privileges[PRIVILEGES.POST_PLANNING] &&
         !!get(planning, '_id') &&
         !isPlanningLockRestricted(planning, session, locks) &&
-        getPublishedState(planning) !== PUBLISHED_STATE.USABLE &&
-        (isNil(event) || getPublishedState(event) === PUBLISHED_STATE.USABLE) &&
+        getPostedState(planning) !== POST_STATE.USABLE &&
+        (isNil(event) || getPostedState(event) === POST_STATE.USABLE) &&
         !isItemSpiked(planning) &&
         !isItemSpiked(event) &&
         !isItemCancelled(planning) &&
@@ -45,10 +45,10 @@ const canPublishPlanning = (planning, event, session, privileges, locks) => (
         !isNotForPublication(planning)
 );
 
-const canUnpublishPlanning = (planning, event, session, privileges, locks) => (
-    !!privileges[PRIVILEGES.PUBLISH_PLANNING] && !isItemSpiked(planning) &&
+const canUnpostPlanning = (planning, event, session, privileges, locks) => (
+    !!privileges[PRIVILEGES.POST_PLANNING] && !isItemSpiked(planning) &&
         !isPlanningLockRestricted(planning, session, locks) &&
-        getPublishedState(planning) === PUBLISHED_STATE.USABLE
+        getPostedState(planning) === POST_STATE.USABLE
 );
 
 const canEditPlanning = (planning, event, session, privileges, locks) => (
@@ -57,6 +57,7 @@ const canEditPlanning = (planning, event, session, privileges, locks) => (
         !isItemSpiked(planning) &&
         !isItemSpiked(event) &&
         !isItemCancelled(planning) &&
+        !(getPostedState(planning) === POST_STATE.USABLE && !privileges[PRIVILEGES.POST_PLANNING]) &&
         !isItemRescheduled(planning)
 );
 
@@ -71,7 +72,7 @@ const canAssignAgenda = (planning, event, privileges, locks) => (
 
 const canUpdatePlanning = (planning, event, session, privileges, locks) => (
     canEditPlanning(planning, event, session, privileges, locks) &&
-        isItemPublic(planning) && !!privileges[PRIVILEGES.PUBLISH_PLANNING] &&
+        isItemPublic(planning) && !!privileges[PRIVILEGES.POST_PLANNING] &&
         !isItemSpiked(planning)
 );
 
@@ -102,14 +103,16 @@ const canCancelPlanning = (planning, event = null, session, privileges, locks) =
     !!privileges[PRIVILEGES.PLANNING_MANAGEMENT] &&
         !isPlanningLockRestricted(planning, session, locks) &&
         getItemWorkflowState(planning) === WORKFLOW_STATE.SCHEDULED &&
-        getItemWorkflowState(event) !== WORKFLOW_STATE.SPIKED
+        getItemWorkflowState(event) !== WORKFLOW_STATE.SPIKED &&
+        !(getPostedState(planning) === POST_STATE.USABLE && !privileges[PRIVILEGES.POST_PLANNING])
 );
 
 const canCancelAllCoverage = (planning, event = null, session, privileges, locks) => (
     !!privileges[PRIVILEGES.PLANNING_MANAGEMENT] &&
         !isItemSpiked(planning) && !isPlanningLockRestricted(planning, session, locks) &&
         getItemWorkflowState(event) !== WORKFLOW_STATE.SPIKED &&
-        canCancelAllCoverageForPlanning(planning)
+        canCancelAllCoverageForPlanning(planning) &&
+        !(getPostedState(planning) === POST_STATE.USABLE && !privileges[PRIVILEGES.POST_PLANNING])
 );
 
 const canAddAsEvent = (planning, event = null, session, privileges, locks) => (
@@ -124,9 +127,16 @@ const canCancelCoverage = (coverage) =>
     (!isCoverageCancelled(coverage) && (!get(coverage, 'assigned_to.state') ||
         get(coverage, 'assigned_to.state') !== ASSIGNMENTS.WORKFLOW_STATE.COMPLETED));
 
+const canRemoveCoverage = (coverage) => (get(coverage, 'workflow_status') === WORKFLOW_STATE.DRAFT ||
+    get(coverage, 'previous_status') === WORKFLOW_STATE.DRAFT);
+
 const canCancelAllCoverageForPlanning = (planning) => (
     get(planning, 'coverages.length') > 0 && get(planning, 'coverages')
         .filter((c) => canCancelCoverage(c)).length > 0
+);
+
+const canAddCoverages = (planning) => (
+    !isItemCancelled(planning) && !isItemRescheduled(planning)
 );
 
 const isPlanningLocked = (plan, locks) =>
@@ -182,6 +192,8 @@ export const getPlanningItemActions = (plan, event = null, session, privileges, 
     let key = 1;
 
     const actionsValidator = {
+        [PLANNING.ITEM_ACTIONS.ADD_COVERAGE.label]: () =>
+            canAddCoverages(plan),
         [PLANNING.ITEM_ACTIONS.SPIKE.label]: () =>
             canSpikePlanning(plan, session, privileges, locks),
         [PLANNING.ITEM_ACTIONS.UNSPIKE.label]: () =>
@@ -195,6 +207,8 @@ export const getPlanningItemActions = (plan, event = null, session, privileges, 
         [PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.label]: () =>
             canAddAsEvent(plan, event, session, privileges, locks),
         [PLANNING.ITEM_ACTIONS.EDIT_PLANNING.label]: () =>
+            canEditPlanning(plan, event, session, privileges, locks),
+        [PLANNING.ITEM_ACTIONS.EDIT_PLANNING_MODAL.label]: () =>
             canEditPlanning(plan, event, session, privileges, locks),
         [PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.label]: () =>
             canAssignAgenda(plan, event, privileges, locks),
@@ -263,56 +277,79 @@ const getPlanningActions = ({
     let enabledAgendas;
     let agendaCallBacks = [];
     let actions = [];
+    let addCoverageCallBacks = [];
     let eventActions = [GENERIC_ITEM_ACTIONS.DIVIDER];
 
     Object.keys(callBacks).forEach((callBackName) => {
         switch (callBackName) {
+        case PLANNING.ITEM_ACTIONS.ADD_COVERAGE.actionName:
+            Object.keys(PLANNING.G2_CONTENT_TYPE).forEach((type) => {
+                addCoverageCallBacks.push({
+                    label: stringUtils.firstCharUpperCase(PLANNING.G2_CONTENT_TYPE[type].replace('_', ' ')),
+                    icon: self.getCoverageIcon(PLANNING.G2_CONTENT_TYPE[type]),
+                    callback: callBacks[callBackName].bind(null, PLANNING.G2_CONTENT_TYPE[type]),
+                });
+            });
+
+            addCoverageCallBacks.length > 0 && actions.push({
+                ...PLANNING.ITEM_ACTIONS.ADD_COVERAGE,
+                callback: addCoverageCallBacks,
+            });
+            break;
+
         case PLANNING.ITEM_ACTIONS.DUPLICATE.actionName:
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.DUPLICATE,
-                callback: callBacks[callBackName].bind(null, item)
+                callback: callBacks[callBackName].bind(null, item),
             });
             break;
 
         case PLANNING.ITEM_ACTIONS.SPIKE.actionName:
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.SPIKE,
-                callback: callBacks[callBackName].bind(null, item)
+                callback: callBacks[callBackName].bind(null, item),
             });
             break;
 
         case PLANNING.ITEM_ACTIONS.UNSPIKE.actionName:
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.UNSPIKE,
-                callback: callBacks[callBackName].bind(null, item)
+                callback: callBacks[callBackName].bind(null, item),
             });
             break;
 
         case PLANNING.ITEM_ACTIONS.CANCEL_PLANNING.actionName:
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.CANCEL_PLANNING,
-                callback: callBacks[callBackName].bind(null, item)
+                callback: callBacks[callBackName].bind(null, item),
             });
             break;
 
         case PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE.actionName:
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.CANCEL_ALL_COVERAGE,
-                callback: callBacks[callBackName].bind(null, item)
+                callback: callBacks[callBackName].bind(null, item),
             });
             break;
 
         case PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName:
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.ADD_AS_EVENT,
-                callback: callBacks[callBackName].bind(null, item)
+                callback: callBacks[callBackName].bind(null, item),
             });
             break;
 
         case PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName:
             actions.push({
                 ...PLANNING.ITEM_ACTIONS.EDIT_PLANNING,
-                callback: callBacks[callBackName].bind(null, item)
+                callback: callBacks[callBackName].bind(null, item),
+            });
+            break;
+
+        case PLANNING.ITEM_ACTIONS.EDIT_PLANNING_MODAL.actionName:
+            actions.push({
+                ...PLANNING.ITEM_ACTIONS.EDIT_PLANNING_MODAL,
+                callback: callBacks[callBackName].bind(null, item, true),
             });
             break;
 
@@ -322,48 +359,48 @@ const getPlanningActions = ({
                 agendaCallBacks.push({
                     label: agenda.name,
                     inactive: get(item, 'agendas', []).includes(agenda._id),
-                    callback: callBacks[callBackName].bind(null, item, agenda)
+                    callback: callBacks[callBackName].bind(null, item, agenda),
                 });
             });
 
             agendaCallBacks.length > 0 && actions.push({
                 ...PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA,
-                callback: agendaCallBacks
+                callback: agendaCallBacks,
             });
             break;
 
         case EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName:
             eventActions.push({
                 ...EVENTS.ITEM_ACTIONS.CANCEL_EVENT,
-                callback: callBacks[callBackName].bind(null, event)
+                callback: callBacks[callBackName].bind(null, event),
             });
             break;
 
         case EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.actionName:
             eventActions.push({
                 ...EVENTS.ITEM_ACTIONS.POSTPONE_EVENT,
-                callback: callBacks[callBackName].bind(null, event)
+                callback: callBacks[callBackName].bind(null, event),
             });
             break;
 
         case EVENTS.ITEM_ACTIONS.UPDATE_TIME.actionName:
             eventActions.push({
                 ...EVENTS.ITEM_ACTIONS.UPDATE_TIME,
-                callback: callBacks[callBackName].bind(null, event)
+                callback: callBacks[callBackName].bind(null, event),
             });
             break;
 
         case EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT.actionName:
             eventActions.push({
                 ...EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT,
-                callback: callBacks[callBackName].bind(null, event)
+                callback: callBacks[callBackName].bind(null, event),
             });
             break;
 
         case EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.actionName:
             eventActions.push({
                 ...EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING,
-                callback: callBacks[callBackName].bind(null, event)
+                callback: callBacks[callBackName].bind(null, event),
             });
             break;
         }
@@ -460,6 +497,10 @@ const createCoverageFromNewsItem = (addNewsItemToPlanning, newsCoverageStatus, d
         self.convertGenreToObject(newCoverage);
     }
 
+    if (get(addNewsItemToPlanning, 'keywords.length', 0) > 0) {
+        newCoverage.planning.keyword = addNewsItemToPlanning.keywords;
+    }
+
     // Add assignment to coverage
     if ([WORKFLOW_STATE.SCHEDULED, 'published'].includes(addNewsItemToPlanning.state)) {
         newCoverage.planning.scheduled = addNewsItemToPlanning.state === 'published' ?
@@ -468,13 +509,13 @@ const createCoverageFromNewsItem = (addNewsItemToPlanning, newsCoverageStatus, d
 
         newCoverage.assigned_to = {
             desk: addNewsItemToPlanning.task.desk,
-            user: addNewsItemToPlanning.task.user,
+            user: get(addNewsItemToPlanning, 'version_creator'),
         };
     } else {
         newCoverage.planning.scheduled = moment().endOf('day');
         newCoverage.assigned_to = {
             desk: desk,
-            user: user,
+            user: get(addNewsItemToPlanning, 'version_creator'),
         };
     }
 
@@ -486,10 +527,9 @@ const getCoverageReadOnlyFields = (
     coverage,
     readOnly,
     newsCoverageStatus,
-    currentWorkspace,
     addNewsItemToPlanning
 ) => {
-    if (currentWorkspace === WORKSPACE.AUTHORING) {
+    if (addNewsItemToPlanning) {
         // if newsItem is published, schedule is readOnly
         return {
             slugline: true,
@@ -499,7 +539,7 @@ const getCoverageReadOnlyFields = (
             g2_content_type: true,
             genre: true,
             newsCoverageStatus: true,
-            scheduled: get(addNewsItemToPlanning, 'state') === 'published'
+            scheduled: get(addNewsItemToPlanning, 'state') === 'published',
         };
     }
 
@@ -691,8 +731,8 @@ const getCoverageWorkflowIcon = (coverage) => {
 const self = {
     canSpikePlanning,
     canUnspikePlanning,
-    canPublishPlanning,
-    canUnpublishPlanning,
+    canPostPlanning,
+    canUnpostPlanning,
     canEditPlanning,
     canUpdatePlanning,
     mapCoverageByDate,
@@ -704,6 +744,7 @@ const self = {
     convertGenreToObject,
     isCoverageCancelled,
     canCancelCoverage,
+    canRemoveCoverage,
     canEditCoverage,
     getCoverageReadOnlyFields,
     isPlanMultiDay,

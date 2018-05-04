@@ -1134,7 +1134,7 @@ Feature: Planning
       Then we get OK response
       Then we store coverage id in "firstcoverage" from coverage 0
       Then we store coverage id in "secondcoverage" from coverage 1
-      When we post to "/planning/publish"
+      When we post to "/planning/post"
         """
         {
             "planning": "#planning._id#",
@@ -1198,7 +1198,7 @@ Feature: Planning
     @notification
     @vocabulary
     @newtest
-    Scenario: Published planning republishes after an update
+    Scenario: Published planning repost after an update
         When we post to "/planning"
         """
         [{
@@ -1207,7 +1207,7 @@ Feature: Planning
         }]
         """
         Then we get OK response
-        When we post to "/planning/publish"
+        When we post to "/planning/post"
         """
         {
             "planning": "#planning._id#",
@@ -1236,7 +1236,7 @@ Feature: Planning
             },
             {
                 "planning_id":  "#planning._id#",
-                "operation": "publish"
+                "operation": "post"
             },
             {
                 "planning_id":  "#planning._id#",
@@ -1245,7 +1245,7 @@ Feature: Planning
             },
             {
                 "planning_id":  "#planning._id#",
-                "operation": "publish"
+                "operation": "post"
             }
         ]}
     """
@@ -1308,3 +1308,136 @@ Feature: Planning
         """
         {"_issues": { "validator exception": "403: Agenda 'Disabled Agenda' is not enabled" }}
         """
+
+
+    @auth
+    @notification
+    Scenario: Assignments for draft coverages are removed on coverage update.
+        Given empty "planning"
+        When we post to "planning"
+        """
+        [{
+            "guid": "123",
+            "item_class": "item class value",
+            "headline": "test headline",
+            "slugline": "test slugline"
+        }]
+        """
+        Then we get OK response
+        When we patch "/planning/#planning._id#"
+        """
+        {
+            "coverages": [
+                {
+                    "planning": {
+                        "ednote": "test coverage, I want 250 words",
+                        "headline": "test headline",
+                        "slugline": "test slugline"
+                    },
+                    "workflow_status": "draft"
+                }
+            ]
+        }
+        """
+        Then we get OK response
+        Then we store coverage id in "firstcoverage" from coverage 0
+        Then the assignment not created for coverage 0
+        Then we get existing resource
+        """
+        {
+            "_id": "#planning._id#",
+            "guid": "123",
+            "item_class": "item class value",
+            "headline": "test headline",
+            "slugline": "test slugline",
+            "coverages": [
+                {
+                    "coverage_id": "#firstcoverage#",
+                    "planning": {
+                        "ednote": "test coverage, I want 250 words",
+                        "headline": "test headline",
+                        "slugline": "test slugline"
+                    }
+                }
+            ]
+        }
+        """
+        When we patch "/planning/#planning._id#"
+        """
+        {
+            "coverages": [
+                {
+                    "coverage_id": "#firstcoverage#",
+                    "planning": {
+                        "ednote": "test coverage, I want 250 words",
+                        "headline": "test headline",
+                        "slugline": "test slugline"
+                    },
+                    "assigned_to": {
+                        "desk": "Politic Desk",
+                        "user": "507f191e810c19729de870eb",
+                        "state": "draft"
+                    }
+                }
+            ]
+        }
+        """
+        Then we get OK response
+        Then we store assignment id in "firstassignment" from coverage 0
+        Then we get existing resource
+        """
+        {
+            "_id": "#planning._id#",
+            "guid": "123",
+            "item_class": "item class value",
+            "headline": "test headline",
+            "slugline": "test slugline",
+            "coverages": [
+                {
+                    "coverage_id": "#firstcoverage#",
+                    "planning": {
+                        "ednote": "test coverage, I want 250 words",
+                        "headline": "test headline",
+                        "slugline": "test slugline"
+                    },
+                    "assigned_to": {
+                        "desk": "Politic Desk",
+                        "user": "507f191e810c19729de870eb",
+                        "assignment_id": "#firstassignment#"
+                    }
+                }
+            ]
+        }
+        """
+        When we get "assignments"
+        Then we get list with 1 items
+        """
+        { "_items": [{
+            "_id": "#firstassignment#",
+            "type": "assignment",
+            "assigned_to": {
+                "desk": "Politic Desk",
+                "user": "507f191e810c19729de870eb",
+                "state": "draft"
+            }
+        }]}
+        """
+        When we patch "/planning/#planning._id#"
+        """
+        {
+            "coverages": [
+                {
+                    "coverage_id": "#firstcoverage#",
+                    "planning": {
+                        "ednote": "test coverage, I want 250 words",
+                        "headline": "test headline",
+                        "slugline": "test slugline"
+                    },
+                    "workflow_status": "draft"
+                }
+            ]
+        }
+        """
+        Then we get OK response
+        When we get "assignments"
+        Then we get list with 0 items

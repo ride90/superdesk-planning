@@ -24,7 +24,8 @@ export const CoverageItem = ({
     timeFormat,
     contentTypes,
     itemActionComponent,
-    isPreview
+    isPreview,
+    active,
 }) => {
     const userAssigned = getCreator(coverage, 'assigned_to.user', users);
     const deskAssigned = getItemInArrayById(desks, get(coverage, 'assigned_to.desk'));
@@ -34,7 +35,7 @@ export const CoverageItem = ({
     const coverageInWorkflow = planningUtils.isCoverageInWorkflow(coverage);
 
     return (
-        <Item noBg={true}>
+        <Item noBg={!active} activated={active}>
             <Border/>
             {!isPreview && <Column border={false}>
                 {userAssigned ? (
@@ -52,14 +53,12 @@ export const CoverageItem = ({
                 )}
             </Column>}
             <Column grow={true} border={false}>
-                <Row>
-                    <CoverageIcon coverage={coverage} withoutTime={true} />
+                <Row paddingBottom>
+                    <CoverageIcon coverage={coverage} dateFormat={dateFormat} timeFormat={timeFormat}
+                        users={users} desks={desks}/>
                     <span className="sd-overflow-ellipsis sd-list-item--element-grow">
-                        {stringUtils.capitalize(get(coverage, 'planning.g2_content_type', ''))}
-                    </span>
-                    <span className="sd-overflow-ellipsis sd-list-item--element-grow">
-                        <StateLabel item={coverageInWorkflow ? get(coverage, 'assigned_to', {}) : coverage }
-                            fieldName={coverageInWorkflow ? 'state' : 'workflow_status'} />
+                        {stringUtils.firstCharUpperCase(
+                            get(coverage, 'planning.g2_content_type', '').replace('_', ' '))}
                     </span>
                     <time>
                         <InternalNoteLabel item={coverage} prefix="planning." marginRight={true} />
@@ -68,21 +67,26 @@ export const CoverageItem = ({
                     </time>
                 </Row>
                 <Row>
-                    <span className="sd-overflow-ellipsis sd-list-item--element-grow">
-                        {!userAssigned && !deskAssigned && (
-                            <span className="sd-list-item__text-label sd-list-item__text-label--normal">
-                                {gettext('Unassigned')}
-                            </span>
-                        )}
+                    {!userAssigned && !deskAssigned && (
+                        <span className="sd-list-item__text-label sd-list-item__text-label--normal">
+                            {gettext('Unassigned')}
+                        </span>
+                    )}
 
-                        {deskAssigned && (
-                            <span>
-                                <span className="sd-list-item__text-label sd-list-item__text-label--normal">
-                                    {gettext('Desk: ')}
-                                </span>
-                                {get(deskAssigned, 'name')}
+                    {deskAssigned && (
+                        <span>
+                            <span className="sd-list-item__text-label sd-list-item__text-label--normal">
+                                {gettext('Desk: ')}
                             </span>
-                        )}
+                            {get(deskAssigned, 'name')}
+                        </span>
+                    )}
+
+                    <span className="sd-overflow-ellipsis sd-list-item--element-grow">
+                        <StateLabel
+                            className="pull-right"
+                            item={coverageInWorkflow ? get(coverage, 'assigned_to', {}) : coverage }
+                            fieldName={coverageInWorkflow ? 'state' : 'workflow_status'} />
                     </span>
                 </Row>
                 <Row>
@@ -113,15 +117,15 @@ CoverageItem.propTypes = {
     timeFormat: PropTypes.string,
     onDuplicateCoverage: PropTypes.func,
     onCancelCoverage: PropTypes.func,
-    currentWorkspace: PropTypes.string,
     itemActionComponent: PropTypes.node,
     contentTypes: PropTypes.array,
-    isPreview: PropTypes.bool
+    isPreview: PropTypes.bool,
+    active: PropTypes.bool,
 };
 
 CoverageItem.defaultProps = {
     dateFormat: 'DD/MM/YYYY',
     timeFormat: 'HH:mm',
     contentTypes: [],
-    isPreview: false
+    isPreview: false,
 };

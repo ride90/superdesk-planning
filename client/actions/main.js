@@ -4,6 +4,7 @@ import planningUi from './planning/ui';
 import planningApi from './planning/api';
 import eventsUi from './events/ui';
 import eventsApi from './events/api';
+import autosave from './autosave';
 import {locks, showModal} from './';
 import {selectAgenda, fetchSelectedAgendaPlannings} from './agenda';
 import {
@@ -15,6 +16,8 @@ import {
     shouldLockItemForEdit,
     shouldUnLockItem,
     getItemTypeString,
+    timeUtils,
+    isExistingItem,
 } from '../utils';
 import {MODALS, WORKSPACE} from '../constants';
 import eventsPlanningUi from './eventsPlanning/ui';
@@ -23,23 +26,30 @@ import {lockUtils} from '../utils';
 
 import * as selectors from '../selectors';
 
-const lockAndEdit = (item) => (
+const lockAndEdit = (item, modal = false) => (
     (dispatch, getState, {notify}) => {
         const currentItemId = selectors.forms.currentItemId(getState());
         const currentSession = selectors.general.session(getState());
         const lockedItems = selectors.locks.getLockedItems(getState());
         const shouldLockItem = shouldLockItemForEdit(item, lockedItems);
 
-        // If this item is already opened and we either have a lock or the item should not get locked
+        // If the editor is in main page and this item is already opened and
+        // we either have a lock or the item should not get locked.
         // Then simply return the item
-        if (currentItemId === item._id &&
+        if (currentItemId === item._id && !modal &&
             (!shouldLockItem || lockUtils.isItemLockedInThisSession(item, currentSession))
         ) {
             return Promise.resolve(item);
         }
 
-        dispatch({type: MAIN.ACTIONS.EDIT_LOADING_START});
-        dispatch(self.openEditor(item));
+        dispatch(setLoadingEditItem(modal));
+        if (!modal) {
+            dispatch(self.openEditor(item));
+        } else {
+            // Open the modal to show the editor
+            dispatch(closeEditorAndOpenModal(item));
+        }
+
 
         // If the item being edited is currently opened in the Preview panel
         // then close the preview panel
@@ -54,7 +64,7 @@ const lockAndEdit = (item) => (
             Promise.resolve(item);
 
         return promise.then((lockedItem) => {
-            dispatch({type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE});
+            dispatch(unsetLoadingEditItem(modal));
 
             return Promise.resolve(lockedItem);
         }, (error) => {
@@ -62,14 +72,14 @@ const lockAndEdit = (item) => (
                 getErrorMessage(error, gettext('Failed to lock the item'))
             );
 
-            dispatch({type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE});
+            dispatch(unsetLoadingEditItem(modal));
 
             return Promise.reject(error);
         });
     }
 );
 
-const unlockAndCancel = (item) => (
+const unlockAndCancel = (item, modal = false) => (
     (dispatch, getState) => {
         const state = getState();
 
@@ -81,9 +91,16 @@ const unlockAndCancel = (item) => (
             dispatch(locks.unlock(item));
         } else if (get(item, '_planning_item')) {
             dispatch(planningApi.unlock({_id: item._planning_item}));
+        } else if (!isExistingItem(item)) {
+            dispatch(autosave.removeNewItems());
         }
 
-        dispatch(self.closeEditor());
+        if (!modal) {
+            dispatch(self.closeEditor());
+        } else {
+            dispatch(self.closeEditorModal());
+        }
+
         return Promise.resolve();
     }
 );
@@ -156,7 +173,7 @@ const save = (item, withConfirmation = true) => (
     }
 );
 
-const unpublish = (item, withConfirmation = true) => (
+const unpost = (item, withConfirmation = true) => (
     (dispatch, getState, {notify}) => {
         const itemType = getItemType(item);
         let promise;
@@ -166,16 +183,16 @@ const unpublish = (item, withConfirmation = true) => (
         case ITEM_TYPE.EVENT:
             confirmation = withConfirmation && get(item, 'recurrence_id');
             promise = dispatch(confirmation ?
-                eventsUi.publishWithConfirmation(item, false) :
-                eventsApi.unpublish(item)
+                eventsUi.postWithConfirmation(item, false) :
+                eventsApi.unpost(item)
             );
             break;
         case ITEM_TYPE.PLANNING:
             confirmation = false;
-            promise = dispatch(planningApi.unpublish(item));
+            promise = dispatch(planningApi.unpost(item));
             break;
         default:
-            promise = Promise.reject(gettext('Failed to unpublish, could not find the item type!'));
+            promise = Promise.reject(gettext('Failed to unpost, could not find the item type!'));
         }
 
         return promise
@@ -183,7 +200,7 @@ const unpublish = (item, withConfirmation = true) => (
                 (rtn) => {
                     if (!confirmation) {
                         notify.success(
-                            gettext('The {{ itemType }} has been unpublished', {itemType: getItemTypeString(item)})
+                            gettext('The {{ itemType }} has been unposted', {itemType: getItemTypeString(item)})
                         );
                     }
                     return Promise.resolve(rtn);
@@ -192,7 +209,7 @@ const unpublish = (item, withConfirmation = true) => (
                     notifyError(
                         notify,
                         error,
-                        gettext('Failed to unpublish the {{ itemType }}', {itemType: getItemTypeString(item)})
+                        gettext('Failed to unpost the {{ itemType }}', {itemType: getItemTypeString(item)})
                     );
                     return Promise.reject(error);
                 }
@@ -200,7 +217,7 @@ const unpublish = (item, withConfirmation = true) => (
     }
 );
 
-const publish = (item, withConfirmation = true) => (
+const post = (item, withConfirmation = true) => (
     (dispatch, getState, {notify}) => {
         const itemType = getItemType(item);
         let promise;
@@ -210,16 +227,16 @@ const publish = (item, withConfirmation = true) => (
         case ITEM_TYPE.EVENT:
             confirmation = withConfirmation && get(item, 'recurrence_id');
             promise = dispatch(confirmation ?
-                eventsUi.publishWithConfirmation(item, true) :
-                eventsApi.publish(item)
+                eventsUi.postWithConfirmation(item, true) :
+                eventsApi.post(item)
             );
             break;
         case ITEM_TYPE.PLANNING:
             confirmation = false;
-            promise = dispatch(planningApi.publish(item));
+            promise = dispatch(planningApi.post(item));
             break;
         default:
-            promise = Promise.reject(gettext('Failed to publish, could not find the item type!'));
+            promise = Promise.reject(gettext('Failed to post, could not find the item type!'));
             break;
         }
 
@@ -228,7 +245,7 @@ const publish = (item, withConfirmation = true) => (
                 (rtn) => {
                     if (!confirmation) {
                         notify.success(
-                            gettext('The {{ itemType }} has been published', {itemType: getItemTypeString(item)})
+                            gettext('The {{ itemType }} has been posted', {itemType: getItemTypeString(item)})
                         );
                     }
 
@@ -238,7 +255,7 @@ const publish = (item, withConfirmation = true) => (
                     notifyError(
                         notify,
                         error,
-                        gettext('Failed to publish the {{ itemType }}', {itemType: getItemTypeString(item)})
+                        gettext('Failed to post the {{ itemType }}', {itemType: getItemTypeString(item)})
                     );
                     return Promise.reject(error);
                 }
@@ -246,13 +263,13 @@ const publish = (item, withConfirmation = true) => (
     }
 );
 
-const openCancelModal = (item, publish = false) => (
+const openCancelModal = (item, post = false) => (
     (dispatch) => {
         const itemType = getItemType(item);
 
         switch (itemType) {
         case ITEM_TYPE.EVENT:
-            dispatch(eventsUi.openCancelModal(item, publish));
+            dispatch(eventsUi.openCancelModal(item, post));
             break;
         }
     }
@@ -269,7 +286,7 @@ const openConfirmationModal = ({title, body, okText, showIgnore, action, ignore}
                 showIgnore,
                 action,
                 ignore,
-            }
+            },
         }))
     )
 );
@@ -353,8 +370,7 @@ const _filter = (filterType, params = {}) => (
         if (filterType === MAIN.FILTERS.EVENTS) {
             dispatch(eventsPlanningUi.clearList());
             dispatch(planningUi.clearList());
-
-            promise = dispatch(eventsUi.fetchEvents(params));
+            promise = dispatch(eventsUi.selectCalendar($location.search().calendar, params));
         } else if (filterType === MAIN.FILTERS.PLANNING) {
             dispatch(eventsPlanningUi.clearList());
             dispatch(eventsUi.clearList());
@@ -443,7 +459,7 @@ const search = (fulltext, currentSearch = undefined) => (
             ...previousParams,
             page: 1,
             fulltext: !isNil(fulltext) ? fulltext : previousParams.fulltext,
-            ...advancedSearch
+            ...advancedSearch,
         };
 
         let promise = Promise.resolve();
@@ -481,7 +497,7 @@ const clearSearch = () => (
 
         dispatch({
             type: MAIN.ACTIONS.CLEAR_SEARCH,
-            payload: filterType
+            payload: filterType,
         });
 
         return dispatch(self._filter(filterType));
@@ -492,14 +508,14 @@ const setTotal = (filter, total) => ({
     type: MAIN.ACTIONS.SET_TOTAL,
     payload: {
         filter,
-        total
-    }
+        total,
+    },
 });
 
 
 const setUnsetLoadingIndicator = (value = false) => ({
     type: MAIN.ACTIONS.SET_UNSET_LOADING_INDICATOR,
-    payload: value
+    payload: value,
 });
 
 
@@ -511,13 +527,38 @@ const openEditor = (item) => (
     (dispatch, getState, {$timeout, $location}) => {
         dispatch({
             type: MAIN.ACTIONS.OPEN_EDITOR,
-            payload: item
+            payload: item,
         });
 
         // Update the URL
         $timeout(() => $location.search('edit', JSON.stringify({id: item._id, type: item.type})));
     }
 );
+
+const closeEditorAndOpenModal = (item) => (
+    (dispatch, getState, {$timeout, $location}) => {
+        const currentItemId = selectors.forms.currentItemId(getState());
+
+        if (currentItemId === item._id) {
+            dispatch(self.closeEditor());
+        }
+
+        // Open the modal to show the editor
+        dispatch(showModal({
+            modalType: MODALS.EDIT_ITEM,
+            modalProps: {item},
+        }));
+    }
+);
+
+/**
+ * Action to open the editor for modalView
+ * @param {object} item - The item to open. Must have _id and type attributes
+ */
+const openEditorModal = (item) => ({
+    type: MAIN.ACTIONS.OPEN_EDITOR_MODAL,
+    payload: item,
+});
 
 /**
  * Action to close the editor and update the URL
@@ -528,6 +569,15 @@ const closeEditor = () => (
 
         // Update the URL
         $timeout(() => $location.search('edit', null));
+    }
+);
+
+/**
+ * Action to close the editor modal
+ */
+const closeEditorModal = () => (
+    (dispatch) => {
+        dispatch({type: MAIN.ACTIONS.CLOSE_EDITOR_MODAL});
     }
 );
 
@@ -548,8 +598,8 @@ const openPreview = (item) => (
             type: MAIN.ACTIONS.SET_PREVIEW_ITEM,
             payload: {
                 itemId: item._id,
-                itemType: item.type
-            }
+                itemType: item.type,
+            },
         });
 
         // Update the URL
@@ -574,6 +624,7 @@ const closePreview = () => (
  * Will dispatch the *_LOADING_START/*_LOADING_COMPLETE actions on start/finish of the action.
  * These actions will indicate to the preview panel/editor that the item is currently loading.
  * This action is executed from the PreviewPanel/Editor React components.
+ * This action won't be hit on Editor Modal.
  * @param {string} itemId - The ID of the item to load
  * @param {string} itemType - The type of item to load (ITEM_TYPE.EVENT/ITEM_TYPE.PLANNING)
  * @param {string} action - The action the item is for (MAIN.PREVIEW/MAIN.EDIT)
@@ -643,12 +694,12 @@ const openFromURLOrRedux = (action) => (
         } else if (action === MAIN.PREVIEW) {
             item = {
                 id: selectors.main.previewId(getState()),
-                type: selectors.main.previewType(getState())
+                type: selectors.main.previewType(getState()),
             };
         } else if (action === MAIN.EDIT) {
             item = {
                 id: selectors.forms.currentItemId(getState()),
-                type: selectors.forms.currentItemType(getState())
+                type: selectors.forms.currentItemType(getState()),
             };
         }
 
@@ -656,12 +707,12 @@ const openFromURLOrRedux = (action) => (
             if (action === MAIN.PREVIEW) {
                 dispatch(self.openPreview({
                     _id: item.id,
-                    type: item.type
+                    type: item.type,
                 }));
             } else if (action === MAIN.EDIT) {
                 dispatch(self.openEditor({
                     _id: item.id,
-                    type: item.type
+                    type: item.type,
                 }));
             }
         } else {
@@ -671,16 +722,91 @@ const openFromURLOrRedux = (action) => (
     }
 );
 
+const setJumpInterval = (value) => ({
+    type: MAIN.ACTIONS.SET_JUMP_INTERVAL,
+    payload: value,
+});
+
+const setLoadingEditItem = (modal = false) => {
+    if (!modal) {
+        return {type: MAIN.ACTIONS.EDIT_LOADING_START};
+    } else {
+        return {type: MAIN.ACTIONS.EDIT_LOADING_START_MODAL};
+    }
+};
+
+const unsetLoadingEditItem = (modal = false) => {
+    if (!modal) {
+        return {type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE};
+    } else {
+        return {type: MAIN.ACTIONS.EDIT_LOADING_COMPLETE_MODAL};
+    }
+};
+
+const jumpTo = (direction) => (
+    (dispatch, getState) => {
+        let newStart;
+
+        if (direction === MAIN.JUMP.TODAY) {
+            newStart = null;
+        } else {
+            const jumpInterval = selectors.main.currentJumpInterval(getState());
+            const currentStartFilter = selectors.main.currentStartFilter(getState());
+
+            if (jumpInterval === MAIN.JUMP.DAY) {
+                newStart = direction === MAIN.JUMP.BACK ?
+                    currentStartFilter.clone().subtract(1, 'd') :
+                    currentStartFilter.clone().add(1, 'd');
+            } else if (jumpInterval === MAIN.JUMP.WEEK) {
+                const startOfWeek = selectors.config.getStartOfWeek(getState());
+
+                newStart = direction === MAIN.JUMP.FORWARD ?
+                    timeUtils.getStartOfNextWeek(currentStartFilter, startOfWeek) :
+                    timeUtils.getStartOfPreviousWeek(currentStartFilter, startOfWeek);
+            } else if (jumpInterval === MAIN.JUMP.MONTH) {
+                newStart = direction === MAIN.JUMP.FORWARD ?
+                    timeUtils.getStartOfNextMonth(currentStartFilter) :
+                    timeUtils.getStartOfPreviousMonth(currentStartFilter);
+            }
+        }
+
+        dispatch(self.setStartFilter(newStart));
+    }
+);
+
+const setStartFilter = (start) => (
+    (dispatch, getState) => {
+        dispatch({
+            type: MAIN.ACTIONS.JUMP_TO,
+            payload: start,
+        });
+
+        dispatch(self.search(
+            selectors.main.fullText(getState()),
+            {advancedSearch: selectors.main.currentAdvancedSearch(getState())}
+        ));
+    }
+);
+
+const notifyValidationErrors = (messages) => (
+    (dispatch, getState, {notify}) => {
+        messages.forEach((message) => notify.error(message));
+    }
+);
+
 // eslint-disable-next-line consistent-this
 const self = {
     lockAndEdit,
     unlockAndCancel,
     save,
-    unpublish,
-    publish,
+    unpost,
+    post,
     openCancelModal,
     openEditor,
+    openEditorModal,
     closeEditor,
+    closeEditorModal,
+    closeEditorAndOpenModal,
     filter,
     _filter,
     openConfirmationModal,
@@ -695,6 +821,10 @@ const self = {
     openFromURLOrRedux,
     loadItem,
     openPreview,
+    setJumpInterval,
+    jumpTo,
+    notifyValidationErrors,
+    setStartFilter,
 };
 
 export default self;

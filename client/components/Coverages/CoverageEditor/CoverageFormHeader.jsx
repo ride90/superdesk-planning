@@ -1,8 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {get} from 'lodash';
-import {getCreator, getItemInArrayById, gettext, planningUtils} from '../../../utils';
-import {WORKSPACE} from '../../../constants';
+import {getCreator, getItemInArrayById, gettext, planningUtils, onEventCapture} from '../../../utils';
 import {Item, Border, Column, Row as ListRow} from '../../UI/List';
 import {Button} from '../../UI';
 import {UserAvatar} from '../../';
@@ -17,8 +16,13 @@ export class CoverageFormHeader extends React.Component {
         this.togglePopup = this.togglePopup.bind(this);
     }
 
-    togglePopup() {
+    togglePopup(event) {
+        onEventCapture(event);
         this.setState({popupOpen: !this.state.popupOpen});
+
+        if (this.props.onFocus) {
+            this.props.onFocus(this.props.field);
+        }
     }
 
     render() {
@@ -30,8 +34,9 @@ export class CoverageFormHeader extends React.Component {
             desks,
             coverageProviders,
             priorities,
-            currentWorkspace,
-            readOnly
+            addNewsItemToPlanning,
+            onRemoveAssignment,
+            readOnly,
         } = this.props;
 
         const userAssigned = getCreator(value, 'assigned_to.user', users);
@@ -39,6 +44,8 @@ export class CoverageFormHeader extends React.Component {
         const coverageProvider = get(value, 'assigned_to.coverage_provider');
         const assignmentState = get(value, 'assigned_to.state');
         const cancelled = get(value, 'workflow_status') === 'cancelled';
+        const canEditAssignment = planningUtils.isCoverageDraft(value) ||
+            (!!addNewsItemToPlanning && !get(value, 'coverage_id'));
 
         if (!deskAssigned && (!userAssigned || !coverageProvider)) {
             return (
@@ -65,8 +72,10 @@ export class CoverageFormHeader extends React.Component {
                                 text={gettext('Assign')}
                                 tabIndex={0}
                                 enterKeyIsClick
-                                className="btn btn--primary btn--small" onClick={this.togglePopup}
-                                autoFocus />
+                                className="btn btn--primary btn--small"
+                                onClick={this.togglePopup}
+                                autoFocus
+                            />
                         </ListRow>)}
                     </Column>
                     {this.state.popupOpen && (
@@ -132,15 +141,28 @@ export class CoverageFormHeader extends React.Component {
                         </ListRow>
                     }
                 </Column>
-                {planningUtils.isCoverageDraft(value) && !readOnly && (
+                {canEditAssignment && !readOnly && (
                     <Column>
-                        <Button
-                            text={gettext('Reassign')}
-                            className="btn btn--hollow btn--small"
-                            onClick={this.togglePopup}
-                            tabIndex={0}
-                            enterKeyIsClick
-                            autoFocus />
+                        <ListRow>
+                            <Button
+                                text={gettext('Reassign')}
+                                className="btn btn--hollow btn--small"
+                                onClick={this.togglePopup}
+                                tabIndex={0}
+                                enterKeyIsClick
+                                disabled={!!addNewsItemToPlanning}
+                                autoFocus />
+                        </ListRow>
+                        <ListRow>
+                            <Button
+                                text={gettext('Remove')}
+                                className="btn btn--hollow btn--small"
+                                onClick={onRemoveAssignment}
+                                tabIndex={0}
+                                enterKeyIsClick
+                                disabled={!!addNewsItemToPlanning}
+                                autoFocus />
+                        </ListRow>
                     </Column>
                 )}
                 {this.state.popupOpen && (
@@ -155,7 +177,8 @@ export class CoverageFormHeader extends React.Component {
                         onClose={this.togglePopup}
                         target="btn--hollow"
                         priorityPrefix="assigned_to."
-                        disableDeskSelection={currentWorkspace === WORKSPACE.AUTHORING}
+                        disableDeskSelection={!!addNewsItemToPlanning}
+                        disableUserSelection={!!addNewsItemToPlanning}
                     />
                 )}
             </Item>
@@ -171,6 +194,8 @@ CoverageFormHeader.propTypes = {
     desks: PropTypes.array,
     coverageProviders: PropTypes.array,
     priorities: PropTypes.array,
-    currentWorkspace: PropTypes.string,
     readOnly: PropTypes.bool,
+    addNewsItemToPlanning: PropTypes.object,
+    onFocus: PropTypes.func,
+    onRemoveAssignment: PropTypes.func,
 };

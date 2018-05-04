@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import {ContentBlock} from '../UI/SidePanel';
 import {InputArray} from '../UI/Form';
 import {CoverageEditor} from './CoverageEditor';
+import {CoverageAddButton} from './CoverageAddButton';
 
 import {gettext} from '../../utils';
 import {COVERAGES} from '../../constants';
@@ -29,35 +30,38 @@ export const CoverageArrayInput = ({
     onDuplicateCoverage,
     onCancelCoverage,
     onAddCoverageToWorkflow,
-    currentWorkspace,
+    onRemoveAssignment,
+    addNewsItemToPlanning,
     readOnly,
     message,
-    ...props,
+    navigation,
+    ...props
 }) => (
     <div>
-        <h3 className="side-panel__heading side-panel__heading--big">
-            {gettext('Coverages')}
-        </h3>
-
         <ContentBlock>
             <InputArray
+                label={gettext('Coverages')}
+                labelClassName="side-panel__heading side-panel__heading--big"
                 field={field}
                 value={value}
                 onChange={onChange}
+                navigation={navigation}
                 addButtonText={addButtonText}
+                addButtonComponent={CoverageAddButton}
                 element={CoverageEditor}
                 users={users}
                 desks={desks}
                 timeFormat={timeFormat}
                 dateFormat={dateFormat}
-                currentWorkspace={currentWorkspace}
+                addNewsItemToPlanning={addNewsItemToPlanning}
                 newsCoverageStatus={newsCoverageStatus}
                 contentTypes={contentTypes}
                 genres={genres}
-                defaultElement={COVERAGES.DEFAULT_VALUE(newsCoverageStatus, props.diff)}
+                defaultElement={COVERAGES.DEFAULT_VALUE.bind(null, newsCoverageStatus, props.diff)}
                 coverageProviders={coverageProviders}
                 priorities={priorities}
                 keywords={keywords}
+                onRemoveAssignment={onRemoveAssignment}
                 onDuplicateCoverage={onDuplicateCoverage}
                 onCancelCoverage={onCancelCoverage}
                 onAddCoverageToWorkflow={onAddCoverageToWorkflow}
@@ -67,6 +71,7 @@ export const CoverageArrayInput = ({
                 originalCount={originalCount}
                 message={message}
                 row={false}
+                buttonWithLabel
                 {...props}
             />
         </ContentBlock>
@@ -96,7 +101,7 @@ CoverageArrayInput.propTypes = {
     onDuplicateCoverage: PropTypes.func,
     onCancelCoverage: PropTypes.func,
     onAddCoverageToWorkflow: PropTypes.func,
-    currentWorkspace: PropTypes.string,
+    onRemoveAssignment: PropTypes.func,
     message: PropTypes.oneOfType([
         PropTypes.string,
         PropTypes.object,
@@ -107,6 +112,8 @@ CoverageArrayInput.propTypes = {
     formProfile: PropTypes.object,
     errors: PropTypes.object,
     showErrors: PropTypes.bool,
+    addNewsItemToPlanning: PropTypes.object,
+    navigation: PropTypes.object,
 };
 
 CoverageArrayInput.defaultProps = {

@@ -24,8 +24,8 @@ from superdesk.notification import push_notification
 from apps.archive.common import set_original_creator, get_user, get_auth
 from copy import deepcopy
 from eve.utils import config, ParsedRequest
-from planning.common import WORKFLOW_STATE_SCHEMA, PUBLISHED_STATE_SCHEMA, get_coverage_cancellation_state,\
-    remove_lock_information, WORKFLOW_STATE, ASSIGNMENT_WORKFLOW_STATE, update_published_item
+from planning.common import WORKFLOW_STATE_SCHEMA, POST_STATE_SCHEMA, get_coverage_cancellation_state,\
+    remove_lock_information, WORKFLOW_STATE, ASSIGNMENT_WORKFLOW_STATE, update_post_item
 from superdesk.utc import utcnow
 from itertools import chain
 from planning.planning_notifications import PlanningNotifications
@@ -65,6 +65,7 @@ class PlanningService(superdesk.Service):
                 coverage['assigned_to'] = {}
             if coverage_assignment.get(coverage_id):
                 assignment = coverage_assignment.get(coverage_id)
+                coverage['assigned_to']['assignment_id'] = assignment.get(config.ID_FIELD)
                 coverage['assigned_to']['desk'] = assignment.get('assigned_to', {}).get('desk')
                 coverage['assigned_to']['user'] = assignment.get('assigned_to', {}).get('user')
                 coverage['assigned_to']['state'] = assignment.get('assigned_to', {}).get('state')
@@ -211,7 +212,7 @@ class PlanningService(superdesk.Service):
         self.__generate_related_assignments([doc])
         updates['coverages'] = doc.get('coverages') or []
 
-        update_published_item(updates, original)
+        update_post_item(updates, original)
 
     def can_edit(self, item, user_id):
         # Check privileges
@@ -281,7 +282,7 @@ class PlanningService(superdesk.Service):
                 if not original_coverage:
                     continue
 
-                if coverage != original_coverage:
+                if self.coverage_changed(coverage, original_coverage):
                     user = get_user()
                     coverage['version_creator'] = str(user.get(config.ID_FIELD)) if user else None
                     coverage['versioncreated'] = utcnow()
@@ -322,6 +323,14 @@ class PlanningService(superdesk.Service):
                             slugline=coverage.get('planning', {}).get('slugline', ''))
 
             self._create_update_assignment(original.get(config.ID_FIELD), coverage, original_coverage)
+
+    @staticmethod
+    def coverage_changed(updates, original):
+        for field in ['news_coverage_status', 'planning', 'workflow_status']:
+            if updates.get(field) != original.get(field):
+                return True
+
+        return False
 
     def set_planning_schedule(self, updates, original=None):
         """This set the list of schedule based on the coverage and planning.
@@ -409,8 +418,14 @@ class PlanningService(superdesk.Service):
             updates['assigned_to']['assignment_id'] = str(assignment_id[0])
             updates['assigned_to']['state'] = assign_state
         elif assigned_to.get('assignment_id'):
-            # update the assignment using the coverage details
+            if not updates.get('assigned_to'):
+                if not is_coverage_draft:
+                    raise SuperdeskApiError.badRequestError('Coverage not in draft state to remove assignment.')
+                # Removing assignment
+                assignment_service.delete(lookup={'_id': assigned_to.get('assignment_id')})
+                return
 
+            # update the assignment using the coverage details
             original_assignment = assignment_service.find_one(req=None,
                                                               _id=assigned_to.get('assignment_id'))
 
@@ -423,7 +438,8 @@ class PlanningService(superdesk.Service):
             if updates.get('news_coverage_status') and \
                     updates.get('news_coverage_status').get('qcode') == coverage_cancel_state.get('qcode') and \
                     original.get('news_coverage_status').get('qcode') != coverage_cancel_state.get('qcode'):
-                self.cancel_coverage(updates, coverage_cancel_state, original_assignment)
+                self.cancel_coverage(updates, coverage_cancel_state, original.get('workflow_status'),
+                                     original_assignment)
                 return
 
             assignment = {}
@@ -448,7 +464,7 @@ class PlanningService(superdesk.Service):
         (updates.get('assigned_to') or {}).pop('coverage_provider', None)
         (updates.get('assigned_to') or {}).pop('state', None)
 
-    def cancel_coverage(self, coverage, coverage_cancel_state, assignment=None, note=None,
+    def cancel_coverage(self, coverage, coverage_cancel_state, original_workflow_status, assignment=None, note=None,
                         reason=None, event_cancellation=False):
         if reason:
             note += 'Reason: {}\n'.format(reason)
@@ -459,6 +475,7 @@ class PlanningService(superdesk.Service):
             coverage['planning']['internal_note'] = (coverage['planning'].get('internal_note') or '') + '\n\n' + note
 
         coverage['news_coverage_status'] = coverage_cancel_state
+        coverage['previous_status'] = original_workflow_status
         coverage['workflow_status'] = WORKFLOW_STATE.CANCELLED
 
         # Cancel assignment if the coverage has an assignment
@@ -665,6 +682,7 @@ coverage_schema = {
         }
     },
     'workflow_status': {'type': 'string'},
+    'previous_status': {'type': 'string'},
     'assigned_to': {
         'type': 'dict',
         'mapping': {
@@ -811,7 +829,7 @@ planning_schema = {
     },
 
     # Public/Published status
-    'pubstatus': PUBLISHED_STATE_SCHEMA,
+    'pubstatus': POST_STATE_SCHEMA,
 
     # The previous state the item was in before for example being spiked,
     # when un-spiked it will revert to this state
@@ -824,13 +842,18 @@ planning_schema = {
         'default': 'planning',
     },
 
-    # Identifier used to synchronise the published planning item with an external system.
+    # Identifier used to synchronise the posted planning item with an external system.
     'unique_id': {
         'type': 'string',
         'mapping': not_analyzed
     },
 
     'place': metadata_schema['place'],
+
+    # Name used to identify the planning item
+    'name': {
+        'type': 'string'
+    },
 }  # end planning_schema
 
 

@@ -117,3 +117,12 @@
         flex-grow: 0 !important;
     }
 }
+
+.cursor-pointer { cursor: pointer; }
+
+// Remove the underline from text inside check boxes
+a:hover {
+   &.sd-check__wrapper {
+      text-decoration: none;
+   }
+}

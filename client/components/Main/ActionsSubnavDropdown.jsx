@@ -4,10 +4,6 @@ import {gettext} from '../../utils';
 import {Dropdown} from '../UI/SubNav';
 
 export const ActionsSubnavDropdown = (props) => {
-    if (props.disableAgendaManagement) {
-        return null;
-    }
-
     const items = [{
         label: gettext('Manage agendas'),
         action: props.openAgendas,
@@ -19,11 +15,9 @@ export const ActionsSubnavDropdown = (props) => {
             label={gettext('Actions')}
             items={items}
             alignRight={true}
+            tooltip={gettext('Actions')}
         />
     );
 };
 
-ActionsSubnavDropdown.propTypes = {
-    openAgendas: PropTypes.func,
-    disableAgendaManagement: PropTypes.bool,
-};
+ActionsSubnavDropdown.propTypes = {openAgendas: PropTypes.func};

@@ -3,6 +3,7 @@ import eventsUi from '../ui';
 import planningApi from '../../planning/api';
 import {main} from '../../';
 import {PRIVILEGES, MAIN} from '../../../constants';
+import {omit} from 'lodash';
 import sinon from 'sinon';
 import moment from 'moment';
 import {getTestActionStore, restoreSinonStub, expectAccessDenied} from '../../../utils/testUtils';
@@ -108,7 +109,7 @@ describe('actions.events.ui', () => {
                     'cancel',
                     true,
                     false,
-                    true
+                    true,
                 ]);
 
                 done();
@@ -126,7 +127,7 @@ describe('actions.events.ui', () => {
                     true,
                     false,
                     false,
-                    false
+                    false,
                 ]);
 
                 done();
@@ -142,7 +143,7 @@ describe('actions.events.ui', () => {
                     'Update time',
                     'update_time',
                     false,
-                    false
+                    false,
                 ]);
 
                 done();
@@ -160,7 +161,7 @@ describe('actions.events.ui', () => {
                     true,
                     false,
                     true,
-                    false
+                    false,
                 ]);
 
                 done();
@@ -202,7 +203,7 @@ describe('actions.events.ui', () => {
                     data.events[1],
                     true,
                     false,
-                    true
+                    true,
                 ]);
 
                 expect(store.dispatch.callCount).toBe(3);
@@ -505,7 +506,34 @@ describe('actions.events.ui', () => {
             restoreSinonStub(eventsApi.duplicate);
         });
 
-        it('duplicate calls events.api.duplicate and notifies the user of success', (done) => {
+        it('duplicate updates past event date to current date', (done) => {
+            data.events[0].dates.start = moment(data.events[0].dates.start);
+            data.events[0].dates.end = moment(data.events[0].dates.end);
+            store.test(done, eventsUi.duplicate(data.events[0]))
+                .then(() => {
+                    const daysBetween = moment().diff(data.events[0].dates.start, 'days');
+                    const newStartDate = data.events[0].dates.start.add(daysBetween, 'days');
+                    const newEndDate = data.events[0].dates.end.add(daysBetween, 'days');
+
+                    expect(main.lockAndEdit.callCount).toBe(1);
+                    expect(main.lockAndEdit.args[0]).toEqual([{
+                        ...omit(data.events[0], ['_id', '_etag', 'planning_ids']),
+                        dates: {
+                            start: newStartDate,
+                            end: newEndDate,
+                        },
+                        duplicate_from: 'e1',
+                        occur_status: {
+                            name: 'Planned, occurs certainly',
+                            label: 'Confirmed',
+                            qcode: 'eocstat:eos5',
+                        }}]);
+
+                    done();
+                });
+        });
+
+        xit('duplicate calls events.api.duplicate and notifies the user of success', (done) => {
             sinon.stub(eventsApi, 'duplicate').callsFake((item) => Promise.resolve(item));
             store.test(done, eventsUi.duplicate(data.events[0]))
                 .then((item) => {
@@ -525,7 +553,7 @@ describe('actions.events.ui', () => {
                 });
         });
 
-        it('on duplicate error notify the user of the failure', (done) => {
+        xit('on duplicate error notify the user of the failure', (done) => {
             sinon.stub(eventsApi, 'duplicate').callsFake(() => Promise.reject(errorMessage));
             store.test(done, eventsUi.duplicate(data.events[0]))
                 .then(null, (error) => {
@@ -577,7 +605,7 @@ describe('actions.events.ui', () => {
             sinon.stub(eventsApi, 'rescheduleEvent').callsFake((item) => Promise.resolve({
                 ...item,
                 reschedule_to: 'e2',
-                state: 'rescheduled'
+                state: 'rescheduled',
             }));
             store.test(done, eventsUi.rescheduleEvent(data.events[0]))
                 .then((item) => {
@@ -619,7 +647,7 @@ describe('actions.events.ui', () => {
             sinon.stub(eventsApi, 'rescheduleEvent').callsFake((item) => Promise.resolve({
                 ...item,
                 reschedule_to: 'e2',
-                state: 'rescheduled'
+                state: 'rescheduled',
             }));
             sinon.stub(eventsApi, 'fetchById').callsFake((item) => Promise.reject(errorMessage));
 
@@ -713,9 +741,9 @@ describe('actions.events.ui', () => {
                         occur_status: {
                             label: 'Unplanned',
                             qcode: 'eocstat:eos0',
-                            name: 'Unplanned event'
+                            name: 'Unplanned event',
                         },
-                        _planning_item: plan._id
+                        _planning_item: plan._id,
                     }));
 
                     expect(moment(args.dates.start).isSame(moment('2016-10-15T13:01:11+0000'))).toBeTruthy();
@@ -725,5 +753,55 @@ describe('actions.events.ui', () => {
                     done();
                 });
         });
+    });
+
+    describe('selectCalendar', () => {
+        beforeEach(() => {
+            sinon.stub(eventsUi, 'fetchEvents').callsFake(() => (Promise.resolve()));
+        });
+
+        afterEach(() => {
+            restoreSinonStub(eventsUi.fetchEvents);
+        });
+
+        it('selects default Calendar', (done) => (
+            store.test(done, eventsUi.selectCalendar())
+                .then(() => {
+                    expect(store.dispatch.callCount).toBe(2);
+                    expect(store.dispatch.args[0]).toEqual([{
+                        type: 'SELECT_EVENT_CALENDAR',
+                        payload: 'ALL_CALENDARS',
+                    }]);
+
+                    expect(services.$timeout.callCount).toBe(1);
+                    expect(services.$location.search.callCount).toBe(1);
+                    expect(services.$location.search.args[0]).toEqual(['calendar', 'ALL_CALENDARS']);
+
+                    expect(eventsUi.fetchEvents.callCount).toBe(1);
+                    expect(eventsUi.fetchEvents.args[0]).toEqual([{}]);
+
+                    done();
+                })
+        ));
+
+        it('selects specific calendar and passes params to fetchEvents', (done) => (
+            store.test(done, eventsUi.selectCalendar('cal1', {fulltext: 'search text'}))
+                .then(() => {
+                    expect(store.dispatch.callCount).toBe(2);
+                    expect(store.dispatch.args[0]).toEqual([{
+                        type: 'SELECT_EVENT_CALENDAR',
+                        payload: 'cal1',
+                    }]);
+
+                    expect(services.$timeout.callCount).toBe(1);
+                    expect(services.$location.search.callCount).toBe(1);
+                    expect(services.$location.search.args[0]).toEqual(['calendar', 'cal1']);
+
+                    expect(eventsUi.fetchEvents.callCount).toBe(1);
+                    expect(eventsUi.fetchEvents.args[0]).toEqual([{fulltext: 'search text'}]);
+
+                    done();
+                })
+        ));
     });
 });

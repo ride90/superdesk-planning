@@ -26,13 +26,13 @@ describe('actions.main', () => {
         expect(store.dispatch.callCount).toBe(1);
         expect(store.dispatch.args[0]).toEqual([{
             type: 'MAIN_OPEN_EDITOR',
-            payload: data.events[0]
+            payload: data.events[0],
         }]);
 
         expect(services.$location.search.callCount).toBe(1);
         expect(services.$location.search.args[0]).toEqual([
             'edit',
-            JSON.stringify({id: 'e1', type: 'event'})
+            JSON.stringify({id: 'e1', type: 'event'}),
         ]);
     });
 
@@ -45,7 +45,7 @@ describe('actions.main', () => {
         expect(services.$location.search.callCount).toBe(1);
         expect(services.$location.search.args[0]).toEqual([
             'edit',
-            null
+            null,
         ]);
     });
 
@@ -71,7 +71,7 @@ describe('actions.main', () => {
                 .then(() => {
                     expect(store.dispatch.args[0]).toEqual([{
                         type: 'MAIN_FILTER',
-                        payload: 'COMBINED'
+                        payload: 'COMBINED',
                     }]);
                     expect(store.dispatch.callCount).toBe(7);
                     expect(services.$timeout.callCount).toBe(1);
@@ -92,14 +92,14 @@ describe('actions.main', () => {
                 .then(() => {
                     expect(store.dispatch.args[0]).toEqual([{
                         type: 'MAIN_FILTER',
-                        payload: 'EVENTS'
+                        payload: 'EVENTS',
                     }]);
 
-                    expect(store.dispatch.callCount).toBe(7);
-                    expect(services.$timeout.callCount).toBe(1);
-                    expect(services.$location.search.callCount).toBe(3);
+                    expect(store.dispatch.callCount).toBe(9);
+                    expect(services.$timeout.callCount).toBe(2);
+                    expect(services.$location.search.callCount).toBe(5);
                     expect(services.$location.search.args).toEqual(
-                        [[], [], ['filter', 'EVENTS']]
+                        [[], [], ['filter', 'EVENTS'], [], ['calendar', 'ALL_CALENDARS']]
                     );
 
                     expect(planningUi.clearList.callCount).toBe(1);
@@ -115,7 +115,7 @@ describe('actions.main', () => {
                 .then(() => {
                     expect(store.dispatch.args[0]).toEqual([{
                         type: 'MAIN_FILTER',
-                        payload: 'PLANNING'
+                        payload: 'PLANNING',
                     }]);
 
                     expect(store.dispatch.callCount).toBe(15);
@@ -131,43 +131,43 @@ describe('actions.main', () => {
         ));
     });
 
-    describe('unpublish', () => {
+    describe('unpost', () => {
         beforeEach(() => {
-            sinon.stub(eventsApi, 'unpublish').returns(Promise.resolve(data.events[0]));
-            sinon.stub(planningApi, 'unpublish').returns(Promise.resolve(data.plannings[0]));
+            sinon.stub(eventsApi, 'unpost').returns(Promise.resolve(data.events[0]));
+            sinon.stub(planningApi, 'unpost').returns(Promise.resolve(data.plannings[0]));
         });
 
         afterEach(() => {
-            restoreSinonStub(eventsApi.unpublish);
-            restoreSinonStub(planningApi.unpublish);
+            restoreSinonStub(eventsApi.unpost);
+            restoreSinonStub(planningApi.unpost);
         });
 
-        it('calls events.ui.unpublish', (done) => (
-            store.test(done, main.unpublish(data.events[0], false))
+        it('calls events.ui.unpost', (done) => (
+            store.test(done, main.unpost(data.events[0], false))
                 .then(() => {
-                    expect(eventsApi.unpublish.callCount).toBe(1);
-                    expect(eventsApi.unpublish.args[0]).toEqual([data.events[0]]);
+                    expect(eventsApi.unpost.callCount).toBe(1);
+                    expect(eventsApi.unpost.args[0]).toEqual([data.events[0]]);
 
                     done();
                 })
         ));
 
-        it('calls planning.ui.unpublish', (done) => (
-            store.test(done, main.unpublish(data.plannings[0]))
+        it('calls planning.ui.unpost', (done) => (
+            store.test(done, main.unpost(data.plannings[0]))
                 .then(() => {
-                    expect(planningApi.unpublish.callCount).toBe(1);
-                    expect(planningApi.unpublish.args[0]).toEqual([data.plannings[0]]);
+                    expect(planningApi.unpost.callCount).toBe(1);
+                    expect(planningApi.unpost.args[0]).toEqual([data.plannings[0]]);
 
                     done();
                 })
         ));
 
         it('raises an error if the item type was not found', (done) => (
-            store.test(done, main.unpublish({}))
+            store.test(done, main.unpost({}))
                 .then(null, () => {
                     expect(services.notify.error.callCount).toBe(1);
                     expect(services.notify.error.args[0]).toEqual([
-                        'Failed to unpublish, could not find the item type!'
+                        'Failed to unpost, could not find the item type!',
                     ]);
 
                     done();
@@ -370,6 +370,7 @@ describe('actions.main', () => {
                         advancedSearch: {},
                         spikeState: 'draft',
                         fulltext: '',
+                        excludeRescheduledAndCancelled: false,
                         page: 1}]);
                     done();
                 });

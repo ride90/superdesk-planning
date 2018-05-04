@@ -1,9 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import {Button} from '../UI';
 import {SubNav} from '../UI/SubNav';
-import {ToggleFiltersButton, FiltersBox} from '.';
-import {gettext} from '../../utils';
+import {ToggleFiltersButton, FiltersBox, CalendarNavigation} from '.';
 
 export const FiltersBar = (props) => (
     <SubNav>
@@ -19,15 +17,12 @@ export const FiltersBar = (props) => (
             selectAgenda={props.selectAgenda}
             currentAgendaId={props.currentAgendaId}
             showFilters={props.showFilters}
+            enabledCalendars={props.enabledCalendars}
+            disabledCalendars={props.disabledCalendars}
+            selectCalendar={props.selectCalendar}
+            currentCalendarId={props.currentCalendarId}
         />
-        {props.isViewFiltered &&
-        <Button
-            text={gettext('Clear Filters')}
-            className="btn__clear-filters"
-            hollow={true}
-            color="alert"
-            onClick={props.clearSearch}
-        />}
+        <CalendarNavigation />
     </SubNav>
 );
 
@@ -44,5 +39,9 @@ FiltersBar.propTypes = {
     showFilters: PropTypes.bool,
     showAgendaSelection: PropTypes.bool,
     isViewFiltered: PropTypes.bool,
-    clearSearch: PropTypes.func
+    clearSearch: PropTypes.func,
+    enabledCalendars: PropTypes.array,
+    disabledCalendars: PropTypes.array,
+    selectCalendar: PropTypes.func,
+    currentCalendarId: PropTypes.string,
 };

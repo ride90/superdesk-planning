@@ -111,7 +111,7 @@ const onEventSpiked = (_e, data) => (
                 payload: {
                     item: data.item,
                     items: data.spiked_items,
-                }
+                },
             });
 
             dispatch(main.closePreviewAndEditorForItems(
@@ -138,7 +138,7 @@ const onEventUnspiked = (_e, data) => (
                 payload: {
                     item: data.item,
                     items: data.unspiked_items,
-                }
+                },
             });
 
             dispatch(main.closePreviewAndEditorForItems(
@@ -196,18 +196,18 @@ const onEventPostponed = (e, data) => (
     }
 );
 
-const onEventPublishChanged = (e, data) => (
+const onEventPostChanged = (e, data) => (
     (dispatch) => {
         if (get(data, 'item')) {
             dispatch({
                 type: data.state === WORKFLOW_STATE.SCHEDULED ?
-                    EVENTS.ACTIONS.MARK_EVENT_PUBLISHED :
-                    EVENTS.ACTIONS.MARK_EVENT_UNPUBLISHED,
+                    EVENTS.ACTIONS.MARK_EVENT_POSTED :
+                    EVENTS.ACTIONS.MARK_EVENT_UNPOSTED,
                 payload: {
                     item: data.item,
                     items: get(data, 'items', [{
                         id: data.item,
-                        etag: data.etag
+                        etag: data.etag,
                     }]),
                     state: data.state,
                     pubstatus: data.pubstatus,
@@ -234,7 +234,7 @@ const onRecurringEventCreated = (_e, data) => (
             return dispatch(dispatchUtils.retryDispatch(
                 eventsApi.query({
                     recurrenceId: data.item,
-                    onlyFuture: false
+                    onlyFuture: false,
                 }),
                 (events) => get(events, 'length', 0) > 0,
                 5,
@@ -273,11 +273,11 @@ const onEventUpdated = (_e, data) => (
                     const loadedFromRefetch = selectedEvents.indexOf(data.item) !== -1 &&
                         !events.find((event) => event._id === data.item);
 
-                    if (!loadedFromRefetch && (currentPreviewId === data.item || currentEditId === data.item)) {
-                        dispatch(eventsApi.fetchById(data.item, {force: true}));
-                    }
-
-                    dispatch(eventsPlanning.ui.scheduleRefetch());
+                    dispatch(eventsPlanning.ui.scheduleRefetch()).then(() => {
+                        if (!loadedFromRefetch && (currentPreviewId === data.item || currentEditId === data.item)) {
+                            dispatch(eventsApi.fetchById(data.item, {force: true}));
+                        }
+                    });
                 });
         }
     }
@@ -295,7 +295,7 @@ const self = {
     onEventCancelled,
     onEventScheduleChanged,
     onEventPostponed,
-    onEventPublishChanged,
+    onEventPostChanged,
 };
 
 // Map of notification name and Action Event to execute
@@ -312,10 +312,10 @@ self.events = {
     'events:reschedule': () => (self.onEventScheduleChanged),
     'events:reschedule:recurring': () => (self.onEventScheduleChanged),
     'events:postpone': () => (self.onEventPostponed),
-    'events:published': () => (self.onEventPublishChanged),
-    'events:published:recurring': () => (self.onEventPublishChanged),
-    'events:unpublished': () => (self.onEventPublishChanged),
-    'events:unpublished:recurring': () => (self.onEventPublishChanged),
+    'events:posted': () => (self.onEventPostChanged),
+    'events:posted:recurring': () => (self.onEventPostChanged),
+    'events:unposted': () => (self.onEventPostChanged),
+    'events:unposted:recurring': () => (self.onEventPostChanged),
     'events:update_time': () => (self.onEventScheduleChanged),
     'events:update_time:recurring': () => (self.onEventScheduleChanged),
     'events:update_repetitions:recurring': () => (self.onEventScheduleChanged),

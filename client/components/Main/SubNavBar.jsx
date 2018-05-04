@@ -2,9 +2,11 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 import {MultiSelectActions} from '../index';
-import {SearchBox} from '../UI';
-import {ActionsSubnavDropdown, CreateNewSubnavDropdown} from './index';
+import {SearchBox, Button} from '../UI';
+import {ActionsSubnavDropdown, CreateNewSubnavDropdown, JumpToDropdown} from './index';
 import {SubNav} from '../UI/SubNav';
+
+import {gettext} from '../../utils';
 
 export const SubNavBar = ({
     addEvent,
@@ -14,15 +16,27 @@ export const SubNavBar = ({
     search,
     activeFilter,
     createPlanningOnly,
-    disableAgendaManagement,
+    isViewFiltered,
+    clearSearch,
+    currentStartFilter,
+    setStartFilter,
 }) => (
     <SubNav>
         <MultiSelectActions />
         <SearchBox label="Search planning" value={value} search={search} activeFilter={activeFilter}/>
-        <ActionsSubnavDropdown
-            openAgendas={openAgendas}
-            disableAgendaManagement={disableAgendaManagement}
+        {isViewFiltered &&
+        <Button
+            text={gettext('Clear Filters')}
+            className="btn__clear-filters"
+            hollow={true}
+            color="alert"
+            onClick={clearSearch}
+        />}
+        <JumpToDropdown
+            currentStartFilter={currentStartFilter}
+            setStartFilter={setStartFilter}
         />
+        <ActionsSubnavDropdown openAgendas={openAgendas} />
         <CreateNewSubnavDropdown
             addEvent={addEvent}
             addPlanning={addPlanning}
@@ -39,5 +53,8 @@ SubNavBar.propTypes = {
     search: PropTypes.func.isRequired,
     activeFilter: PropTypes.string.isRequired,
     createPlanningOnly: PropTypes.bool,
-    disableAgendaManagement: PropTypes.bool,
+    isViewFiltered: PropTypes.bool,
+    clearSearch: PropTypes.func,
+    currentStartFilter: PropTypes.object,
+    setStartFilter: PropTypes.func,
 };

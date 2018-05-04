@@ -208,7 +208,7 @@ Feature: Events
 
     @auth
     @notification
-    Scenario: Track publish history for event
+    Scenario: Track post history for event
         Given empty "users"
         Given "contacts"
         """
@@ -244,7 +244,7 @@ Feature: Events
         ]
         """
         Then we get OK response
-        When we post to "/events/publish"
+        When we post to "/events/post"
         """
         {"event": "#events._id#", "etag": "#events._etag#", "pubstatus": "usable"}
         """
@@ -252,7 +252,7 @@ Feature: Events
         And we get notifications
         """
         [{
-            "event": "events:published",
+            "event": "events:posted",
             "extra": {
                 "item": "#events._id#",
                 "state": "scheduled",
@@ -269,12 +269,12 @@ Feature: Events
                 },
                 {
                 "event_id": "#events._id#",
-                "operation": "publish",
+                "operation": "post",
                 "update": {"state": "scheduled"}
                 }
             ]}
         """
-        When we post to "/events/publish"
+        When we post to "/events/post"
         """
         {"event": "#events._id#", "etag": "#events._etag#", "pubstatus": "cancelled"}
         """
@@ -282,7 +282,7 @@ Feature: Events
         And we get notifications
         """
         [{
-            "event": "events:unpublished",
+            "event": "events:unposted",
             "extra": {
                 "item": "#events._id#",
                 "state": "killed",
@@ -299,12 +299,12 @@ Feature: Events
                 },
                 {
                 "event_id": "#events._id#",
-                "operation": "publish",
+                "operation": "post",
                 "update": {"state": "scheduled"}
                 },
                 {
                 "event_id": "#events._id#",
-                "operation": "publish",
+                "operation": "post",
                 "update": {"pubstatus": "cancelled"}
                 }
             ]}
@@ -363,13 +363,23 @@ Feature: Events
         ]
         """
         Then we get OK response
-        When we post to "/events/publish"
+        When we post to "/events/post"
         """
         {"event": "#events._id#", "etag": "#events._etag#", "pubstatus": "usable"}
         """
-        When we post to "/events/#events._id#/duplicate"
+        When we post to "/events"
         """
-        [{}]
+        [{
+            "name": "event 123",
+            "state": "draft",
+            "type": "event",
+            "occur_status": {"qcode": "eocstat:eos5"},
+            "dates": {
+                "start": "2016-01-02",
+                "end": "2016-01-03"
+            },
+            "duplicate_from": "123"
+        }]
         """
         Then we get OK response
         When we get "/events/123"
@@ -380,14 +390,14 @@ Feature: Events
             "name": "event 123",
             "type": "event",
             "state": "scheduled",
-            "duplicate_to": ["#duplicate._id#"]
+            "duplicate_to": ["#events._id#"]
         }
         """
-        When we get "/events/#duplicate._id#"
+        When we get "/events/#events._id#"
         Then we get existing resource
         """
         {
-            "_id": "#duplicate._id#",
+            "_id": "#events._id#",
             "name": "event 123",
             "state": "draft",
             "type": "event",
@@ -404,16 +414,16 @@ Feature: Events
                 "event_id": "123"
             },
             {
-                "operation": "publish",
+                "operation": "post",
                 "update": { "state" : "scheduled", "pubstatus": "usable" }
             },
             {
                 "operation": "create",
-                "event_id": "#duplicate._id#"
+                "event_id": "#events._id#"
             },
             {
                 "operation": "duplicate",
-                "update": { "duplicate_id" : "#duplicate._id#"}
+                "update": { "duplicate_id" : "#events._id#"}
             },
             {
                 "operation": "duplicate_from",
@@ -421,119 +431,14 @@ Feature: Events
             },
             {
                 "operation": "update",
-                "update": { "duplicate_to": ["#duplicate._id#"] }
-            }
-        ]}
-        """
-
-    @auth
-    Scenario: Duplicate a recurrent event
-        Given "vocabularies"
-        """
-        [{
-            "_id": "eventoccurstatus",
-                    "display_name": "Event Occurence Status",
-                    "type": "manageable",
-                    "unique_field": "qcode",
-                    "items": [
-                        {"is_active": true, "qcode": "eocstat:eos5", "name": "Planned, occurs certainly"}
-                    ]
-        }]
-        """
-        Given "contacts"
-        """
-        [{"first_name": "Albert", "last_name": "Foo"}]
-        """
-        Given empty "users"
-        When we post to "users"
-        """
-        {"username": "foo", "email": "foo@bar.com", "is_active": true, "sign_off": "abc"}
-        """
-        When we post to "/events"
-        """
-        [
-            {
-                "guid": "123",
-                "name": "event 123",
-                "slugline": "event-123",
-                "definition_short": "short value",
-                "definition_long": "long value",
-                "recurrence_id": "432",
-                "previous_recurrence_id": "765",
-                "relationships":{
-                    "broader": "broader value",
-                    "narrower": "narrower value",
-                    "related": "related value"
-                },
-                "dates": {
-                    "start": "2016-01-02",
-                    "end": "2016-01-03",
-                    "recurring_rule" : {
-                        "frequency" : "WEEKLY",
-                        "until" : null,
-                        "count" : 1,
-                        "endRepeatMode" : "count",
-                        "interval" : 1,
-                        "byday" : "MO"
-                    }
-                },
-                "subject": [{"qcode": "test qcaode", "name": "test name"}],
-                "event_contact_info": ["#contacts._id#"]
-            }
-        ]
-        """
-        Then we get OK response
-        Then we store "eventId" with value "#events._id#" to context
-        When we post to "/events/#eventId#/duplicate"
-        """
-        [{}]
-        """
-        Then we get OK response
-        When we get "/events"
-        Then we get list with 2 items
-        """
-        {"_items": [
-            {
-                "_id": "#eventId#",
-                "name": "event 123"
-            },
-            {
-                "_id": "#duplicate._id#",
-                "name": "event 123",
-                "occur_status": {"qcode": "eocstat:eos5"}
-            }
-        ]}
-        """
-        When we get "/events_history"
-        Then we get list with 5 items
-        """
-        {"_items": [
-            {
-                "operation": "create",
-                "event_id": "#eventId#"
-            },
-            {
-                "operation": "create",
-                "event_id": "#duplicate._id#"
-            },
-            {
-                "operation": "duplicate",
-                "update": { "duplicate_id" : "#duplicate._id#"}
-            },
-            {
-                "operation": "duplicate_from",
-                "update": { "duplicate_id" : "#eventId#"}
-            },
-            {
-                "operation": "update",
-                "update": { "duplicate_to": ["#duplicate._id#"] }
+                "update": { "duplicate_to": ["#events._id#"] }
             }
         ]}
         """
 
     @auth
     @notification
-    Scenario: Published event modified will re-publish the event
+    Scenario: Posted event modified will re-post the event
         When we post to "events" with success
         """
         [{
@@ -547,7 +452,7 @@ Feature: Events
             }
         }]
         """
-        When we post to "/events/publish"
+        When we post to "/events/post"
         """
         {"event": "#events._id#", "etag": "#events._etag#", "pubstatus": "usable"}
         """
@@ -566,7 +471,7 @@ Feature: Events
                 "event_id": "#events._id#"
             },
             {
-                "operation": "publish",
+                "operation": "post",
                 "event_id": "#events._id#"
             },
             {
@@ -574,14 +479,14 @@ Feature: Events
                 "update": { "name" : "New Event"}
             },
             {
-                "operation": "publish",
+                "operation": "post",
                 "event_id": "#events._id#"
             }
         ]}
         """
 
     @auth
-    Scenario: Duplicating published event will not republish it
+    Scenario: Duplicating posted event will not repost it
         Given "vocabularies"
         """
         [{
@@ -633,13 +538,22 @@ Feature: Events
         ]
         """
         Then we get OK response
-        When we post to "/events/publish"
+        When we post to "/events/post"
         """
         {"event": "#events._id#", "etag": "#events._etag#", "pubstatus": "usable"}
         """
-        When we post to "/events/#events._id#/duplicate"
+        When we post to "/events"
         """
-        [{}]
+        [{
+            "name": "event 123",
+            "state": "draft",
+            "occur_status": {"qcode": "eocstat:eos5"},
+            "dates": {
+                "start": "2016-01-02",
+                "end": "2016-01-03"
+            },
+            "duplicate_from": "123"
+        }]
         """
         Then we get OK response
         When we get "/events/123"
@@ -649,14 +563,14 @@ Feature: Events
             "_id": "123",
             "name": "event 123",
             "state": "scheduled",
-            "duplicate_to": ["#duplicate._id#"]
+            "duplicate_to": ["#events._id#"]
         }
         """
-        When we get "/events/#duplicate._id#"
+        When we get "/events/#events._id#"
         Then we get existing resource
         """
         {
-            "_id": "#duplicate._id#",
+            "_id": "#events._id#",
             "name": "event 123",
             "state": "draft",
             "occur_status": {"qcode": "eocstat:eos5"},
@@ -672,16 +586,16 @@ Feature: Events
                 "event_id": "123"
             },
             {
-                "operation": "publish",
+                "operation": "post",
                 "update": { "state" : "scheduled", "pubstatus": "usable" }
             },
             {
                 "operation": "create",
-                "event_id": "#duplicate._id#"
+                "event_id": "#events._id#"
             },
             {
                 "operation": "duplicate",
-                "update": { "duplicate_id" : "#duplicate._id#"}
+                "update": { "duplicate_id" : "#events._id#"}
             },
             {
                 "operation": "duplicate_from",
@@ -689,7 +603,7 @@ Feature: Events
             },
             {
                 "operation": "update",
-                "update": { "duplicate_to": ["#duplicate._id#"] }
+                "update": { "duplicate_to": ["#events._id#"] }
             }
         ]}
         """

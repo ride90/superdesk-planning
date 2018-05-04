@@ -29,8 +29,8 @@ describe('actions.planning.api', () => {
         sinon.stub(planningApi, 'fetchPlanningsEvents').callsFake(() => (Promise.resolve()));
         sinon.stub(planningApi, 'fetchById').callsFake(() => (Promise.resolve()));
         sinon.stub(planningApi, 'fetchPlanningHistory').callsFake(() => (Promise.resolve()));
-        sinon.stub(planningApi, 'publish').callsFake(() => (Promise.resolve()));
-        sinon.stub(planningApi, 'unpublish').callsFake(() => (Promise.resolve()));
+        sinon.stub(planningApi, 'post').callsFake(() => (Promise.resolve()));
+        sinon.stub(planningApi, 'unpost').callsFake(() => (Promise.resolve()));
     });
 
     afterEach(() => {
@@ -41,8 +41,8 @@ describe('actions.planning.api', () => {
         restoreSinonStub(planningApi.fetchPlanningsEvents);
         restoreSinonStub(planningApi.fetchById);
         restoreSinonStub(planningApi.fetchPlanningHistory);
-        restoreSinonStub(planningApi.publish);
-        restoreSinonStub(planningApi.unpublish);
+        restoreSinonStub(planningApi.post);
+        restoreSinonStub(planningApi.unpost);
     });
 
     describe('spike', () => {
@@ -120,7 +120,7 @@ describe('actions.planning.api', () => {
                                         },
                                     },
                                 },
-                            }
+                            },
                         }
                     );
                     expect(source.query.bool.must_not).toEqual([]);
@@ -134,10 +134,10 @@ describe('actions.planning.api', () => {
                                         range: {
                                             '_planning_schedule.scheduled': {
                                                 gte: 'now/d',
-                                                time_zone: getTimeZoneOffset()
-                                            }
-                                        }
-                                    }
+                                                time_zone: getTimeZoneOffset(),
+                                            },
+                                        },
+                                    },
                                 },
                             },
                         ]
@@ -148,7 +148,7 @@ describe('actions.planning.api', () => {
 
         it('by list of planning not in any agendas', (done) => (
             store.test(done, planningApi.query({
-                noAgendaAssigned: true
+                noAgendaAssigned: true,
             }))
                 .then(() => {
                     let noAgenda = {constant_score: {filter: {exists: {field: 'agendas'}}}};
@@ -168,7 +168,7 @@ describe('actions.planning.api', () => {
                                         },
                                     },
                                 },
-                            }
+                            },
                         }
                     );
 
@@ -199,7 +199,7 @@ describe('actions.planning.api', () => {
                                         },
                                     },
                                 },
-                            }
+                            },
                         }
                     );
 
@@ -234,7 +234,7 @@ describe('actions.planning.api', () => {
                                         },
                                     },
                                 },
-                            }
+                            },
                         }
                     );
 
@@ -255,11 +255,11 @@ describe('actions.planning.api', () => {
                 advancedSearch: {
                     state: [{
                         qcode: 'draft',
-                        name: 'draft'
+                        name: 'draft',
                     }, {
                         qcode: 'postponed',
-                        name: 'postponed'
-                    }]}
+                        name: 'postponed',
+                    }]},
             }))
                 .then(() => {
                     expect(services.api('planning').query.callCount).toBe(1);
@@ -277,7 +277,7 @@ describe('actions.planning.api', () => {
                                         },
                                     },
                                 },
-                            }
+                            },
                         }
                     );
 
@@ -299,11 +299,11 @@ describe('actions.planning.api', () => {
                 advancedSearch: {
                     state: [{
                         qcode: 'draft',
-                        name: 'draft'
+                        name: 'draft',
                     }, {
                         qcode: 'postponed',
-                        name: 'postponed'
-                    }]}
+                        name: 'postponed',
+                    }]},
             }))
                 .then(() => {
                     expect(services.api('planning').query.callCount).toBe(1);
@@ -321,7 +321,7 @@ describe('actions.planning.api', () => {
                                         },
                                     },
                                 },
-                            }
+                            },
                         }
                     );
 
@@ -432,7 +432,6 @@ describe('actions.planning.api', () => {
                         page: 1,
                         max_results: 25,
                         sort: '[("dates.start",1)]',
-                        embedded: {files: 1},
                         source: JSON.stringify({
                             query: {
                                 bool: {
@@ -829,18 +828,18 @@ describe('actions.planning.api', () => {
         });
     });
 
-    describe('publish', () => {
-        it('api.publish calls `planning` endpoint', (done) => {
-            restoreSinonStub(planningApi.publish);
+    describe('post', () => {
+        it('api.post calls `planning` endpoint', (done) => {
+            restoreSinonStub(planningApi.post);
             restoreSinonStub(planningApi.fetchById);
             sinon.stub(planningApi, 'fetchById').returns(Promise.resolve(data.plannings[0]));
-            store.test(done, planningApi.publish(data.plannings[0]))
+            store.test(done, planningApi.post(data.plannings[0]))
                 .then((item) => {
                     expect(item).toEqual(data.plannings[0]);
 
                     expect(services.api.save.callCount).toBe(1);
                     expect(services.api.save.args[0]).toEqual([
-                        'planning_publish',
+                        'planning_post',
                         {
                             planning: data.plannings[0]._id,
                             etag: data.plannings[0]._etag,
@@ -852,10 +851,10 @@ describe('actions.planning.api', () => {
                 });
         });
 
-        it('api.publish returns Promise.reject on error', (done) => {
-            restoreSinonStub(planningApi.publish);
+        it('api.post returns Promise.reject on error', (done) => {
+            restoreSinonStub(planningApi.post);
             services.api.save = sinon.stub().returns(Promise.reject(errorMessage));
-            store.test(done, planningApi.publish(data.plannings[0]))
+            store.test(done, planningApi.post(data.plannings[0]))
                 .then(null, (error) => {
                     expect(error).toEqual(errorMessage);
                     done();
@@ -863,13 +862,13 @@ describe('actions.planning.api', () => {
         });
     });
 
-    it('api.unpublish calls `planning` endpoint', (done) => {
-        restoreSinonStub(planningApi.unpublish);
-        store.test(done, planningApi.unpublish(data.plannings[0]))
+    it('api.unpost calls `planning` endpoint', (done) => {
+        restoreSinonStub(planningApi.unpost);
+        store.test(done, planningApi.unpost(data.plannings[0]))
             .then(() => {
                 expect(services.api.save.callCount).toBe(1);
                 expect(services.api.save.args[0]).toEqual([
-                    'planning_publish',
+                    'planning_post',
                     {
                         planning: data.plannings[0]._id,
                         etag: data.plannings[0]._etag,

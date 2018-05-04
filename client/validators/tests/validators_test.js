@@ -28,7 +28,7 @@ const TestForm = ({formData}) => {
         diff: formData.diff,
         onChange: formData.onChange,
         errors: formData.errors,
-        showErrors: formData.showErrors
+        showErrors: formData.showErrors,
     };
 
     return (
@@ -83,8 +83,8 @@ describe('validators', () => {
             showErrors: true,
             item: {
                 slugline: 'slugline 1',
-                name: 'name 2'
-            }
+                name: 'name 2',
+            },
         };
 
         validateRequired = sinon.spy((dispatch, getState, field, value, profile, e) => {
@@ -92,7 +92,7 @@ describe('validators', () => {
                 if (field === 'datetime') {
                     e.datetime = {
                         date: 'This field is required',
-                        time: 'This field is required'
+                        time: 'This field is required',
                     };
                 } else {
                     e[field] = 'This field is required';
@@ -234,14 +234,14 @@ describe('validators', () => {
 
         expect(validate1.callCount).toBe(2);
         expect(validate1.args[0]).toEqual(
-            [dispatch, getState, 'slugline', 'slugline 1', undefined, formData.errors]
+            [dispatch, getState, 'slugline', 'slugline 1', undefined, formData.errors, []]
         );
         expect(validate1.args[1]).toEqual(
-            [dispatch, getState, 'name', 'name 2', undefined, formData.errors]
+            [dispatch, getState, 'name', 'name 2', undefined, formData.errors, []]
         );
 
         expect(validate2.callCount).toBe(1);
-        expect(validate2.args[0]).toEqual([dispatch, getState, 'name', 'name 2', undefined, formData.errors]);
+        expect(validate2.args[0]).toEqual([dispatch, getState, 'name', 'name 2', undefined, formData.errors, []]);
 
         expect(formData.errors).toEqual({
             slugline: 'Validate 1 failed',

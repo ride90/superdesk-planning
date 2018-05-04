@@ -13,6 +13,8 @@ export const EditorContentTab = ({
     submitFailed,
     errors,
     addNewsItemToPlanning,
+    startPartialSave,
+    navigation,
 }) => {
     switch (itemType) {
     case ITEM_TYPE.EVENT:
@@ -24,6 +26,8 @@ export const EditorContentTab = ({
                 readOnly={readOnly}
                 submitFailed={submitFailed}
                 errors={errors}
+                startPartialSave={startPartialSave}
+                navigation={navigation}
             />
         );
     case ITEM_TYPE.PLANNING:
@@ -36,6 +40,8 @@ export const EditorContentTab = ({
                 addNewsItemToPlanning={addNewsItemToPlanning}
                 submitFailed={submitFailed}
                 errors={errors}
+                startPartialSave={startPartialSave}
+                navigation={navigation}
             />
         );
     }
@@ -52,6 +58,8 @@ EditorContentTab.propTypes = {
     addNewsItemToPlanning: PropTypes.object,
     submitFailed: PropTypes.bool,
     errors: PropTypes.object,
+    startPartialSave: PropTypes.func,
+    navigation: PropTypes.object,
 };
 
 EditorContentTab.defaultProps = {readOnly: false};

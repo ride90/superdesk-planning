@@ -1,18 +1,19 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import {ItemActionsMenu} from '../../index';
-import {Button} from '../../UI/Nav';
-import {ITEM_TYPE, EVENTS, PLANNING, WORKSPACE} from '../../../constants';
+
+import {ITEM_TYPE, EVENTS, PLANNING} from '../../../constants';
 import {getItemType, eventUtils, planningUtils} from '../../../utils';
+
+import {ItemActionsMenu} from '../../index';
 
 export const EditorItemActions = ({
     item,
+    onAddCoverage,
     event,
     session,
     privileges,
     lockedItems,
-    currentWorkspace,
-    itemActions
+    itemActions,
 }) => {
     const itemType = getItemType(item);
 
@@ -34,6 +35,7 @@ export const EditorItemActions = ({
 
     if (itemType === ITEM_TYPE.PLANNING) {
         itemActionsCallBack = {
+            [PLANNING.ITEM_ACTIONS.ADD_COVERAGE.actionName]: onAddCoverage,
             [PLANNING.ITEM_ACTIONS.DUPLICATE.actionName]: itemActions[PLANNING.ITEM_ACTIONS.DUPLICATE.actionName],
             [PLANNING.ITEM_ACTIONS.UNSPIKE.actionName]: itemActions[PLANNING.ITEM_ACTIONS.UNSPIKE.actionName],
             [PLANNING.ITEM_ACTIONS.SPIKE.actionName]: itemActions[PLANNING.ITEM_ACTIONS.SPIKE.actionName],
@@ -53,25 +55,26 @@ export const EditorItemActions = ({
                 itemActions[EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.actionName],
         };
 
-        actions = currentWorkspace === WORKSPACE.PLANNING ?
-            planningUtils.getPlanningActions({
-                item: item,
-                event: event,
-                session: session,
-                privileges: privileges,
-                lockedItems: lockedItems,
-                callBacks: itemActionsCallBack}) : [];
+        actions = planningUtils.getPlanningActions({
+            item: item,
+            event: event,
+            session: session,
+            privileges: privileges,
+            lockedItems: lockedItems,
+            callBacks: itemActionsCallBack});
     }
 
     if (actions.length === 0) {
         return null;
     }
 
-    return (<Button>
+    return (
         <ItemActionsMenu
-            className="side-panel__top-tools-right"
-            actions={actions} />
-    </Button>);
+            className="navbtn"
+            actions={actions}
+            wide={itemType === ITEM_TYPE.EVENT}
+        />
+    );
 };
 
 EditorItemActions.propTypes = {
@@ -81,5 +84,5 @@ EditorItemActions.propTypes = {
     privileges: PropTypes.object,
     lockedItems: PropTypes.object,
     itemActions: PropTypes.object,
-    currentWorkspace: PropTypes.string,
+    onAddCoverage: PropTypes.func,
 };

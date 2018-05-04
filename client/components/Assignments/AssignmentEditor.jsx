@@ -48,7 +48,7 @@ export class AssignmentEditorComponent extends React.Component {
             filteredDesks,
             priorityQcode,
             priority,
-            errors
+            errors,
         };
 
         this.onChange = this.onChange.bind(this);
@@ -115,7 +115,7 @@ export class AssignmentEditorComponent extends React.Component {
             this.onChange(this.FIELDS.USER, get(value, '_id'), {
                 userId: userId,
                 user: value,
-                filteredDesks: getDesksForUser(value, this.props.desks)
+                filteredDesks: getDesksForUser(value, this.props.desks),
             });
         }
     }
@@ -127,7 +127,7 @@ export class AssignmentEditorComponent extends React.Component {
             this.onChange(this.FIELDS.DESK, get(value, '_id'), {
                 deskId: deskId,
                 desk: value,
-                filteredUsers: getUsersForDesk(value, this.props.users)
+                filteredUsers: getUsersForDesk(value, this.props.users),
             });
         }
     }
@@ -150,6 +150,7 @@ export class AssignmentEditorComponent extends React.Component {
             priorities,
             popupContainer,
             disableDeskSelection,
+            disableUserSelection,
             showDesk,
             showPriority,
             className,
@@ -196,6 +197,7 @@ export class AssignmentEditorComponent extends React.Component {
                     onChange={this.onUserChange}
                     users={this.state.filteredUsers}
                     popupContainer={popupContainer}
+                    readOnly={disableUserSelection}
                 />
 
                 {showPriority && (
@@ -228,6 +230,7 @@ AssignmentEditorComponent.propTypes = {
     priorityPrefix: PropTypes.string,
     fromCoverage: PropTypes.bool,
     disableDeskSelection: PropTypes.bool,
+    disableUserSelection: PropTypes.bool,
     popupContainer: PropTypes.func,
     showDesk: PropTypes.bool,
     showPriority: PropTypes.bool,
@@ -244,7 +247,7 @@ AssignmentEditorComponent.defaultProps = {
 };
 
 const mapDispatchToProps = (dispatch) => ({
-    onValidate: (diff, errors) => dispatch(validateItem('assignment', diff, {}, errors))
+    onValidate: (diff, errors) => dispatch(validateItem('assignment', diff, {}, errors)),
 });
 
 export const AssignmentEditor = connect(

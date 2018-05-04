@@ -59,13 +59,14 @@ export class ListGroupItem extends React.Component {
             session,
             privileges,
             activeFilter,
-            currentWorkspace,
             onMultiSelectClick,
             selectedEventIds,
             selectedPlanningIds,
             itemActions,
             users,
             desks,
+            showAddCoverage,
+            hideItemActions,
         } = this.props;
         const itemType = getItemType(item);
 
@@ -90,10 +91,14 @@ export class ListGroupItem extends React.Component {
             multiSelected: indexOf(selectedEventIds, item._id) !== -1,
             [EVENTS.ITEM_ACTIONS.EDIT_EVENT.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.EDIT_EVENT.actionName],
+            [EVENTS.ITEM_ACTIONS.EDIT_EVENT_MODAL.actionName]:
+                itemActions[EVENTS.ITEM_ACTIONS.EDIT_EVENT_MODAL.actionName],
             [EVENTS.ITEM_ACTIONS.DUPLICATE.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.DUPLICATE.actionName],
             [EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.CREATE_PLANNING.actionName],
+            [EVENTS.ITEM_ACTIONS.CREATE_AND_OPEN_PLANNING.actionName]:
+                itemActions[EVENTS.ITEM_ACTIONS.CREATE_AND_OPEN_PLANNING.actionName],
             [EVENTS.ITEM_ACTIONS.UNSPIKE.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.UNSPIKE.actionName],
             [EVENTS.ITEM_ACTIONS.SPIKE.actionName]:
@@ -109,7 +114,7 @@ export class ListGroupItem extends React.Component {
             [EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.actionName]:
                 itemActions[EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.actionName],
             [EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.actionName]:
-                itemActions[EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.actionName]
+                itemActions[EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.actionName],
         };
 
         let planningProps = {
@@ -118,9 +123,10 @@ export class ListGroupItem extends React.Component {
             desks: desks,
             agendas: agendas,
             date: date,
-            currentWorkspace: currentWorkspace,
             onAddCoverageClick: onAddCoverageClick,
             multiSelected: indexOf(selectedPlanningIds, item._id) !== -1,
+            showAddCoverage: showAddCoverage,
+            hideItemActions: hideItemActions,
             [PLANNING.ITEM_ACTIONS.DUPLICATE.actionName]:
                 itemActions[PLANNING.ITEM_ACTIONS.DUPLICATE.actionName],
             [PLANNING.ITEM_ACTIONS.SPIKE.actionName]:
@@ -135,6 +141,8 @@ export class ListGroupItem extends React.Component {
                 itemActions[PLANNING.ITEM_ACTIONS.ADD_AS_EVENT.actionName],
             [PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName]:
                 itemActions[PLANNING.ITEM_ACTIONS.EDIT_PLANNING.actionName],
+            [PLANNING.ITEM_ACTIONS.EDIT_PLANNING_MODAL.actionName]:
+                itemActions[PLANNING.ITEM_ACTIONS.EDIT_PLANNING_MODAL.actionName],
             [PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.actionName]:
                 itemActions[PLANNING.ITEM_ACTIONS.ASSIGN_TO_AGENDA.actionName],
             [EVENTS.ITEM_ACTIONS.CANCEL_EVENT.actionName]:
@@ -195,10 +203,11 @@ ListGroupItem.propTypes = {
     activeFilter: PropTypes.string,
     showRelatedPlannings: PropTypes.func,
     relatedPlanningsInList: PropTypes.object,
-    currentWorkspace: PropTypes.string,
     onAddCoverageClick: PropTypes.func,
     onMultiSelectClick: PropTypes.func,
     selectedEventIds: PropTypes.array,
     selectedPlanningIds: PropTypes.array,
     itemActions: PropTypes.object,
+    showAddCoverage: PropTypes.bool,
+    hideItemActions: PropTypes.bool,
 };

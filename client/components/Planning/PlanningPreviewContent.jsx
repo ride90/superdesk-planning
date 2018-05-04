@@ -8,7 +8,7 @@ import {get} from 'lodash';
 import {Row} from '../UI/Preview';
 import {
     AuditInformation,
-    StateLabel
+    StateLabel,
 } from '../index';
 import {ToggleBox} from '../UI';
 import {ColouredValueInput} from '../UI/Form';
@@ -29,7 +29,9 @@ export class PlanningPreviewContentComponent extends React.Component {
             desks,
             newsCoverageStatus,
             urgencies,
-            streetMapUrl
+            streetMapUrl,
+            onEditEvent,
+            lockedItems,
         } = this.props;
         const createdBy = getCreator(item, 'original_creator', users);
         const updatedBy = getCreator(item, 'version_creator', users);
@@ -70,6 +72,11 @@ export class PlanningPreviewContentComponent extends React.Component {
                     label={gettext('Slugline')}
                     value={item.slugline || ''}
                     className="slugline"
+                />
+                <Row
+                    enabled={get(formProfile, 'planning.editor.name.enabled')}
+                    label={gettext('Name')}
+                    value={item.name || ''}
                 />
                 <Row
                     enabled={get(formProfile, 'planning.editor.planning_date.enabled')}
@@ -136,6 +143,8 @@ export class PlanningPreviewContentComponent extends React.Component {
                     timeFormat={timeFormat}
                     dateOnly={true}
                     streetMapUrl={streetMapUrl}
+                    onEditEvent={onEditEvent.bind(null, event)}
+                    lockedItems={lockedItems}
                 />}
                 {hasCoverage &&
                     (<h3 className="side-panel__heading--big">{gettext('Coverages')}</h3>)}
@@ -168,7 +177,8 @@ PlanningPreviewContentComponent.propTypes = {
     timeFormat: PropTypes.string,
     newsCoverageStatus: PropTypes.array,
     urgencies: PropTypes.array,
-    streetMapUrl: PropTypes.string
+    streetMapUrl: PropTypes.string,
+    onEditEvent: PropTypes.func,
 };
 
 const mapStateToProps = (state, ownProps) => ({
@@ -185,12 +195,9 @@ const mapStateToProps = (state, ownProps) => ({
     formProfile: selectors.forms.profiles(state),
     newsCoverageStatus: selectors.getNewsCoverageStatus(state),
     urgencies: selectors.getUrgencies(state),
-    streetMapUrl: selectors.config.getStreetMapUrl(state)
+    streetMapUrl: selectors.config.getStreetMapUrl(state),
 });
 
-const mapDispatchToProps = (dispatch) => ({
-    onDuplicate: (planning) => (dispatch(actions.planning.ui.duplicate(planning))),
-    onUnlock: (planning) => (dispatch(actions.planning.ui.unlockAndOpenEditor(planning))),
-});
+const mapDispatchToProps = (dispatch) => ({onEditEvent: (event) => (dispatch(actions.main.lockAndEdit(event)))});
 
 export const PlanningPreviewContent = connect(mapStateToProps, mapDispatchToProps)(PlanningPreviewContentComponent);

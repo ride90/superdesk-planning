@@ -243,7 +243,7 @@ describe('PlanningUtils', () => {
             name: 'Text',
             qcode: 'text',
             'content item type': 'text',
-        }
+        },
         ];
 
         it('creates photo coverage from unpublished news item', () => {
@@ -252,6 +252,7 @@ describe('PlanningUtils', () => {
                 ednote: 'edit my note',
                 type: 'picture',
                 state: 'draft',
+                version_creator: 'ident2',
             };
 
             const coverage = planUtils.createCoverageFromNewsItem(
@@ -268,7 +269,7 @@ describe('PlanningUtils', () => {
                 workflow_status: 'active',
                 assigned_to: {
                     desk: 'desk1',
-                    user: 'ident1',
+                    user: 'ident2',
                     priority: ASSIGNMENTS.DEFAULT_PRIORITY,
                 },
             });
@@ -281,6 +282,7 @@ describe('PlanningUtils', () => {
                 type: 'text',
                 state: 'published',
                 versioncreated: '2017-10-15T14:01:11',
+                version_creator: 'ident2',
                 task: {
                     desk: 'desk2',
                     user: 'ident2',
@@ -321,7 +323,7 @@ describe('PlanningUtils', () => {
             name: 'Text',
             qcode: 'text',
             'content item type': 'text',
-        }
+        },
         ];
 
         it('creates photo coverage from unpublished news item', () => {
@@ -336,6 +338,7 @@ describe('PlanningUtils', () => {
                 abstract: '<p>some abstractions</p>',
                 state: 'published',
                 versioncreated: '2019-10-15T10:01:11',
+                version_creator: 'ident1',
                 task: {
                     desk: 'desk1',
                     user: 'ident1',
@@ -383,13 +386,14 @@ describe('PlanningUtils', () => {
                 urgency: 3,
                 abstract: '<p>some abstractions</p>',
                 state: 'published',
+                version_creator: 'ident1',
                 versioncreated: '2019-10-15T10:01:11',
                 task: {
                     desk: 'desk1',
                     user: 'ident1',
                     priority: ASSIGNMENTS.DEFAULT_PRIORITY,
                 },
-                flags: {marked_for_not_publication: true}
+                flags: {marked_for_not_publication: true},
             };
 
             const plan = planUtils.createNewPlanningFromNewsItem(
@@ -425,6 +429,7 @@ describe('PlanningUtils', () => {
 
     describe('getPlanningItemActions', () => {
         const actions = [
+            PLANNING.ITEM_ACTIONS.ADD_COVERAGE,
             PLANNING.ITEM_ACTIONS.SPIKE,
             PLANNING.ITEM_ACTIONS.UNSPIKE,
             PLANNING.ITEM_ACTIONS.DUPLICATE,
@@ -471,6 +476,7 @@ describe('PlanningUtils', () => {
             );
 
             expectActions(itemActions, [
+                'Add coverage',
                 'Spike',
                 'Duplicate',
             ]);
@@ -485,6 +491,7 @@ describe('PlanningUtils', () => {
             );
 
             expectActions(itemActions, [
+                'Add coverage',
                 'Spike',
                 'Duplicate',
                 'Cancel Event',
@@ -502,6 +509,7 @@ describe('PlanningUtils', () => {
             );
 
             expectActions(itemActions, [
+                'Add coverage',
                 'Duplicate',
             ]);
 
@@ -515,9 +523,58 @@ describe('PlanningUtils', () => {
             );
 
             expectActions(itemActions, [
+                'Add coverage',
                 'Duplicate',
                 'Cancel Event',
                 'Reschedule Event',
+            ]);
+        });
+
+        it('canceled event and planning', () => {
+            planning.state = 'cancelled';
+            let itemActions = planUtils.getPlanningItemActions(
+                planning, event, session, privileges, actions, locks
+            );
+
+            expectActions(itemActions, [
+                'Duplicate',
+            ]);
+
+            planning.event_item = '1';
+            event = {
+                state: 'cancelled',
+                planning_ids: ['1'],
+            };
+            itemActions = planUtils.getPlanningItemActions(
+                planning, event, session, privileges, actions, locks
+            );
+
+            expectActions(itemActions, [
+                'Duplicate',
+            ]);
+        });
+
+        it('rescheduled event and planning', () => {
+            planning.state = 'rescheduled';
+            let itemActions = planUtils.getPlanningItemActions(
+                planning, event, session, privileges, actions, locks
+            );
+
+            expectActions(itemActions, [
+                'Duplicate',
+            ]);
+
+            planning.event_item = '1';
+            event = {
+                state: 'rescheduled',
+                planning_ids: ['1'],
+            };
+            itemActions = planUtils.getPlanningItemActions(
+                planning, event, session, privileges, actions, locks
+            );
+
+            expectActions(itemActions, [
+                'Duplicate',
             ]);
         });
     });

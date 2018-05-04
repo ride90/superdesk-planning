@@ -27,7 +27,7 @@ PlanningStoreService.$inject = [
     '$interpolate',
     'search',
     'contacts',
-    'preferencesService'
+    'preferencesService',
 ];
 export function PlanningStoreService(
     $rootScope,
@@ -98,26 +98,25 @@ export function PlanningStoreService(
                 default_operator: 'AND',
                 q: 'public:(1) is_active:(1)',
             }).then((items) => items),
-            preferences: preferencesService.get(null, true)
         }).then((data) => {
             const initialState = {
                 config: config,
                 deployConfig: deployConfig.config,
                 vocabularies: zipObject(
-                    data.voc._items.map((cv) => cv._id),
-                    data.voc._items.map((cv) => cv.items)
+                    get(data, 'voc', []).map((cv) => cv._id),
+                    get(data, 'voc', []).map((cv) => cv.items)
                 ),
                 ingest: {
-                    providers: data.ingest._items.filter((p) =>
-                        p.content_types.indexOf(ITEM_TYPE.EVENT) !== -1)
+                    providers: get(data, 'ingest._items', []).filter((p) =>
+                        get(p, 'content_types', []).indexOf(ITEM_TYPE.EVENT) !== -1)
                         .map((provider) => ({
                             name: provider.name,
                             id: provider._id,
                         })),
                 },
                 privileges: data.privileges,
-                subjects: metadata.values.subjectcodes,
-                genres: metadata.values.genre,
+                subjects: metadata.values.subject_custom || metadata.values.subjectcodes,
+                genres: metadata.values.genre_custom || metadata.values.genre,
                 users: data.users,
                 desks: desks.desks._items,
                 templates: data.all_templates._items,
@@ -128,7 +127,7 @@ export function PlanningStoreService(
                 session: {
                     sessionId: session.sessionId,
                     identity: session.identity,
-                    userPreferences: data.preferences || {}
+                    userPreferences: {},
                 },
                 urgency: {
                     urgency: metadata.values.urgency,
@@ -137,6 +136,12 @@ export function PlanningStoreService(
                 forms: {profiles: {}},
                 contacts: data.contacts._items,
             };
+
+            // use custom cvs if any
+            angular.extend(initialState.vocabularies, {
+                categories: initialState.vocabularies.category || initialState.vocabularies.categories,
+                genre: initialState.vocabularies.genre_custom || initialState.vocabularies.genre,
+            });
 
             data.formsProfile._items.forEach((p) => {
                 initialState.forms.profiles[p.name] = p;
@@ -168,6 +173,7 @@ export function PlanningStoreService(
                     search: search,
                     config: config,
                     contacts: contacts,
+                    preferencesService: preferencesService,
                 },
             });
             return self.store;

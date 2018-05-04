@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import {connect} from 'react-redux';
 
 import {get} from 'lodash';
-import {gettext} from '../../../utils';
+import {gettext, eventUtils, planningUtils} from '../../../utils';
 import * as selectors from '../../../selectors';
 import * as actions from '../../../actions';
 
@@ -11,7 +11,7 @@ import {HistoryTab} from '../index';
 import {PreviewContentTab, PreviewHeader} from './index';
 import {Tabs} from '../../UI/Nav';
 import {SidePanel, Header, Tools, Content} from '../../UI/SidePanel';
-import {WORKSPACE, TOOLTIPS} from '../../../constants';
+import {ITEM_TYPE, TOOLTIPS} from '../../../constants';
 
 export class PreviewPanelComponent extends React.Component {
     constructor(props) {
@@ -63,23 +63,45 @@ export class PreviewPanelComponent extends React.Component {
             }, 0);
         }
 
-        if (this.props.inPlanning && get(nextProps, 'item')) {
-            if (get(nextProps.item, 'state') !== 'spiked') {
+        this.tabs[0].label = nextProps.itemType === ITEM_TYPE.EVENT ?
+            gettext('Event Details') :
+            gettext('Planning Details');
+
+        if (!this.props.hideEditIcon && get(nextProps, 'item')) {
+            if ((nextProps.itemType === ITEM_TYPE.EVENT && eventUtils.canEditEvent(
+                nextProps.item,
+                nextProps.session,
+                nextProps.privileges,
+                nextProps.lockedItems
+            )) || (nextProps.itemType === ITEM_TYPE.PLANNING) && planningUtils.canEditPlanning(
+                nextProps.item,
+                null,
+                nextProps.session,
+                nextProps.privileges,
+                nextProps.lockedItems
+            )) {
                 if (this.tools[0].icon !== 'icon-pencil') {
-                    this.tools.unshift({
-                        icon: 'icon-pencil',
-                        onClick: this.openEditPanel,
-                        title: gettext(TOOLTIPS.edit),
-                    });
+                    this.tools.unshift(
+                        {
+                            icon: 'icon-pencil',
+                            onClick: this.openEditPanel.bind(this, false),
+                            title: gettext(TOOLTIPS.edit),
+                        },
+                        {
+                            icon: 'icon-external',
+                            onClick: this.openEditPanel.bind(this, true),
+                            title: gettext(TOOLTIPS.editModal),
+                        });
                 }
             } else if (this.tools[0].icon === 'icon-pencil') {
+                this.tools.shift();
                 this.tools.shift();
             }
         }
     }
 
-    openEditPanel() {
-        this.props.edit(this.props.item);
+    openEditPanel(modal = false) {
+        this.props.edit(this.props.item, modal);
     }
 
     setActiveTab(tab) {
@@ -89,21 +111,26 @@ export class PreviewPanelComponent extends React.Component {
     render() {
         const currentTab = this.tabs[this.state.tab];
         const RenderTab = currentTab.render;
+        const isEvent = this.props.itemType === ITEM_TYPE.EVENT;
 
         return (
             <SidePanel shadowRight={true}>
-                <Header>
+                <Header darkBlue={isEvent} darker={!isEvent}>
                     <Tools tools={this.tools}/>
                     <Tabs
                         tabs={this.tabs}
                         active={this.state.tab}
                         setActive={this.setActiveTab}
+                        darkUi={isEvent}
                     />
                 </Header>
                 {!this.props.previewLoading && this.props.item && (
                     <Content>
                         {currentTab.label !== 'History' &&
-                        <PreviewHeader item={this.props.item}/>
+                        <PreviewHeader
+                            item={this.props.item}
+                            hideItemActions={this.props.hideItemActions}
+                            showUnlock={this.props.showUnlock} />
                         }
                         <RenderTab item={this.props.item}/>
                     </Content>
@@ -123,6 +150,13 @@ PreviewPanelComponent.propTypes = {
     edit: PropTypes.func.isRequired,
     closePreview: PropTypes.func,
     initialLoad: PropTypes.bool,
+    showUnlock: PropTypes.bool,
+    hideItemActions: PropTypes.bool,
+    hideEditIcon: PropTypes.bool,
+    session: PropTypes.object,
+    privileges: PropTypes.object,
+    lockedItems: PropTypes.object,
+
 };
 
 PreviewPanelComponent.defaultProps = {initialLoad: false};
@@ -132,12 +166,14 @@ const mapStateToProps = (state) => ({
     itemId: selectors.main.previewId(state),
     itemType: selectors.main.previewType(state),
     previewLoading: selectors.main.previewLoading(state),
-    inPlanning: selectors.getCurrentWorkspace(state) === WORKSPACE.PLANNING,
+    privileges: selectors.getPrivileges(state),
+    lockedItems: selectors.locks.getLockedItems(state),
+    session: selectors.getSessionDetails(state),
 });
 
 const mapDispatchToProps = (dispatch) => ({
     loadPreviewItem: (itemId, itemType) => dispatch(actions.main.loadItem(itemId, itemType, 'preview')),
-    edit: (item) => dispatch(actions.main.lockAndEdit(item)),
+    edit: (item, modal = false) => dispatch(actions.main.lockAndEdit(item, modal)),
     closePreview: () => dispatch(actions.main.closePreview()),
 });
 

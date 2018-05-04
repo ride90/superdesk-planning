@@ -41,7 +41,7 @@ describe('actions.events.notifications', () => {
                 () => (Promise.resolve())
             );
 
-            sinon.stub(eventsNotifications, 'onEventPublishChanged').callsFake(
+            sinon.stub(eventsNotifications, 'onEventPostChanged').callsFake(
                 () => (Promise.resolve())
             );
 
@@ -68,7 +68,7 @@ describe('actions.events.notifications', () => {
             restoreSinonStub(eventsNotifications.onEventSpiked);
             restoreSinonStub(eventsNotifications.onEventUnspiked);
             restoreSinonStub(eventsNotifications.onEventScheduleChanged);
-            restoreSinonStub(eventsNotifications.onEventPublishChanged);
+            restoreSinonStub(eventsNotifications.onEventPostChanged);
             restoreSinonStub(eventsNotifications.onRecurringEventCreated);
             restoreSinonStub(eventsNotifications.onEventUpdated);
             restoreSinonStub(eventsNotifications.onEventCreated);
@@ -162,45 +162,45 @@ describe('actions.events.notifications', () => {
             }, delay);
         });
 
-        it('`events:published` calls onEventPublishChanged', (done) => {
-            $rootScope.$broadcast('events:published', {item: 'e1'});
+        it('`events:posted` calls onEventPostChanged', (done) => {
+            $rootScope.$broadcast('events:posted', {item: 'e1'});
 
             setTimeout(() => {
-                expect(eventsNotifications.onEventPublishChanged.callCount).toBe(1);
-                expect(eventsNotifications.onEventPublishChanged.args[0][1]).toEqual({item: 'e1'});
+                expect(eventsNotifications.onEventPostChanged.callCount).toBe(1);
+                expect(eventsNotifications.onEventPostChanged.args[0][1]).toEqual({item: 'e1'});
 
                 done();
             }, delay);
         });
 
-        it('`events:published:recurring` calls onEventPublishChanged', (done) => {
-            $rootScope.$broadcast('events:published:recurring', {item: 'e1'});
+        it('`events:posted:recurring` calls onEventPostChanged', (done) => {
+            $rootScope.$broadcast('events:posted:recurring', {item: 'e1'});
 
             setTimeout(() => {
-                expect(eventsNotifications.onEventPublishChanged.callCount).toBe(1);
-                expect(eventsNotifications.onEventPublishChanged.args[0][1]).toEqual({item: 'e1'});
+                expect(eventsNotifications.onEventPostChanged.callCount).toBe(1);
+                expect(eventsNotifications.onEventPostChanged.args[0][1]).toEqual({item: 'e1'});
 
                 done();
             }, delay);
         });
 
-        it('`events:unpublished` calls onEventPublishChanged', (done) => {
-            $rootScope.$broadcast('events:unpublished', {item: 'e1'});
+        it('`events:unposted` calls onEventPostChanged', (done) => {
+            $rootScope.$broadcast('events:unposted', {item: 'e1'});
 
             setTimeout(() => {
-                expect(eventsNotifications.onEventPublishChanged.callCount).toBe(1);
-                expect(eventsNotifications.onEventPublishChanged.args[0][1]).toEqual({item: 'e1'});
+                expect(eventsNotifications.onEventPostChanged.callCount).toBe(1);
+                expect(eventsNotifications.onEventPostChanged.args[0][1]).toEqual({item: 'e1'});
 
                 done();
             }, delay);
         });
 
-        it('`events:unpublished:recurring` calls onEventPublishChanged', (done) => {
-            $rootScope.$broadcast('events:unpublished:recurring', {item: 'e1'});
+        it('`events:unposted:recurring` calls onEventPostChanged', (done) => {
+            $rootScope.$broadcast('events:unposted:recurring', {item: 'e1'});
 
             setTimeout(() => {
-                expect(eventsNotifications.onEventPublishChanged.callCount).toBe(1);
-                expect(eventsNotifications.onEventPublishChanged.args[0][1]).toEqual({item: 'e1'});
+                expect(eventsNotifications.onEventPostChanged.callCount).toBe(1);
+                expect(eventsNotifications.onEventPostChanged.args[0][1]).toEqual({item: 'e1'});
 
                 done();
             }, delay);
@@ -262,13 +262,13 @@ describe('actions.events.notifications', () => {
         });
     });
 
-    describe('onEventPublishChanged', () => {
+    describe('onEventPostChanged', () => {
         beforeEach(() => {
-            restoreSinonStub(eventsNotifications.onEventPublishChanged);
+            restoreSinonStub(eventsNotifications.onEventPostChanged);
         });
 
-        it('dispatches `MARK_EVENT_PUBLISHED`', (done) => (
-            store.test(done, eventsNotifications.onEventPublishChanged(
+        it('dispatches `MARK_EVENT_POSTED`', (done) => (
+            store.test(done, eventsNotifications.onEventPostChanged(
                 {},
                 {
                     item: data.events[0]._id,
@@ -280,12 +280,12 @@ describe('actions.events.notifications', () => {
                 .then(() => {
                     expect(store.dispatch.callCount).toBe(1);
                     expect(store.dispatch.args[0]).toEqual([{
-                        type: 'MARK_EVENT_PUBLISHED',
+                        type: 'MARK_EVENT_POSTED',
                         payload: {
                             item: data.events[0]._id,
                             items: [{
                                 id: data.events[0]._id,
-                                etag: data.events[0]._etag
+                                etag: data.events[0]._etag,
                             }],
                             state: 'scheduled',
                             pubstatus: 'usable',
@@ -295,20 +295,20 @@ describe('actions.events.notifications', () => {
                 })
         ));
 
-        it('dispatches `MARK_EVENT_PUBLISHED` for multiple events', (done) => (
-            store.test(done, eventsNotifications.onEventPublishChanged(
+        it('dispatches `MARK_EVENT_POSTED` for multiple events', (done) => (
+            store.test(done, eventsNotifications.onEventPostChanged(
                 {},
                 {
                     item: data.events[0]._id,
                     items: [{
                         id: data.events[0]._id,
-                        etag: data.events[0]._etag
+                        etag: data.events[0]._etag,
                     }, {
                         id: data.events[1]._id,
-                        etag: data.events[1]._etag
+                        etag: data.events[1]._etag,
                     }, {
                         id: data.events[2]._id,
-                        etag: data.events[2]._etag
+                        etag: data.events[2]._etag,
                     }],
                     state: 'scheduled',
                     pubstatus: 'usable',
@@ -318,18 +318,18 @@ describe('actions.events.notifications', () => {
                 .then(() => {
                     expect(store.dispatch.callCount).toBe(1);
                     expect(store.dispatch.args[0]).toEqual([{
-                        type: 'MARK_EVENT_PUBLISHED',
+                        type: 'MARK_EVENT_POSTED',
                         payload: {
                             item: data.events[0]._id,
                             items: [{
                                 id: data.events[0]._id,
-                                etag: data.events[0]._etag
+                                etag: data.events[0]._etag,
                             }, {
                                 id: data.events[1]._id,
-                                etag: data.events[1]._etag
+                                etag: data.events[1]._etag,
                             }, {
                                 id: data.events[2]._id,
-                                etag: data.events[2]._etag
+                                etag: data.events[2]._etag,
                             }],
                             state: 'scheduled',
                             pubstatus: 'usable',
@@ -339,8 +339,8 @@ describe('actions.events.notifications', () => {
                 })
         ));
 
-        it('dispatches `MARK_EVENT_UNPUBLISHED`', (done) => (
-            store.test(done, eventsNotifications.onEventPublishChanged(
+        it('dispatches `MARK_EVENT_UNPOSTED`', (done) => (
+            store.test(done, eventsNotifications.onEventPostChanged(
                 {},
                 {
                     item: data.events[0]._id,
@@ -352,12 +352,12 @@ describe('actions.events.notifications', () => {
                 .then(() => {
                     expect(store.dispatch.callCount).toBe(1);
                     expect(store.dispatch.args[0]).toEqual([{
-                        type: 'MARK_EVENT_UNPUBLISHED',
+                        type: 'MARK_EVENT_UNPOSTED',
                         payload: {
                             item: data.events[0]._id,
                             items: [{
                                 id: data.events[0]._id,
-                                etag: data.events[0]._etag
+                                etag: data.events[0]._etag,
                             }],
                             state: 'killed',
                             pubstatus: 'cancelled',
@@ -367,20 +367,20 @@ describe('actions.events.notifications', () => {
                 })
         ));
 
-        it('dispatches `MARK_EVENT_UNPUBLISHED` for multiple events', (done) => (
-            store.test(done, eventsNotifications.onEventPublishChanged(
+        it('dispatches `MARK_EVENT_UNPOSTED` for multiple events', (done) => (
+            store.test(done, eventsNotifications.onEventPostChanged(
                 {},
                 {
                     item: data.events[0]._id,
                     items: [{
                         id: data.events[0]._id,
-                        etag: data.events[0]._etag
+                        etag: data.events[0]._etag,
                     }, {
                         id: data.events[1]._id,
-                        etag: data.events[1]._etag
+                        etag: data.events[1]._etag,
                     }, {
                         id: data.events[2]._id,
-                        etag: data.events[2]._etag
+                        etag: data.events[2]._etag,
                     }],
                     state: 'killed',
                     pubstatus: 'cancelled',
@@ -390,18 +390,18 @@ describe('actions.events.notifications', () => {
                 .then(() => {
                     expect(store.dispatch.callCount).toBe(1);
                     expect(store.dispatch.args[0]).toEqual([{
-                        type: 'MARK_EVENT_UNPUBLISHED',
+                        type: 'MARK_EVENT_UNPOSTED',
                         payload: {
                             item: data.events[0]._id,
                             items: [{
                                 id: data.events[0]._id,
-                                etag: data.events[0]._etag
+                                etag: data.events[0]._etag,
                             }, {
                                 id: data.events[1]._id,
-                                etag: data.events[1]._etag
+                                etag: data.events[1]._etag,
                             }, {
                                 id: data.events[2]._id,
-                                etag: data.events[2]._etag
+                                etag: data.events[2]._etag,
                             }],
                             state: 'killed',
                             pubstatus: 'cancelled',
@@ -556,8 +556,8 @@ describe('actions.events.notifications', () => {
                 spiked_items: [{
                     id: data.events[0]._id,
                     etag: 'e123',
-                    revert_state: 'draft'
-                }]
+                    revert_state: 'draft',
+                }],
             }))
                 .then(() => {
                     expect(store.dispatch.callCount).toBe(6);
@@ -568,7 +568,7 @@ describe('actions.events.notifications', () => {
                             items: [{
                                 id: data.events[0]._id,
                                 etag: 'e123',
-                                revert_state: 'draft'
+                                revert_state: 'draft',
                             }],
                         },
                     }]);
@@ -578,16 +578,16 @@ describe('actions.events.notifications', () => {
                         [{
                             id: data.events[0]._id,
                             etag: 'e123',
-                            revert_state: 'draft'
+                            revert_state: 'draft',
                         }],
                         'The Event was spiked',
-                        'id'
+                        'id',
                     ]);
 
                     expect(main.setUnsetLoadingIndicator.callCount).toBe(2);
                     expect(main.setUnsetLoadingIndicator.args).toEqual([
                         [true],
-                        [false]
+                        [false],
                     ]);
 
                     expect(eventsUi.scheduleRefetch.callCount).toBe(1);
@@ -603,8 +603,8 @@ describe('actions.events.notifications', () => {
                 unspiked_items: [{
                     id: data.events[0]._id,
                     etag: 'e123',
-                    revert_state: 'draft'
-                }]
+                    revert_state: 'draft',
+                }],
             }))
                 .then(() => {
                     expect(store.dispatch.callCount).toBe(6);
@@ -615,7 +615,7 @@ describe('actions.events.notifications', () => {
                             items: [{
                                 id: data.events[0]._id,
                                 etag: 'e123',
-                                revert_state: 'draft'
+                                revert_state: 'draft',
                             }],
                         },
                     }]);
@@ -625,16 +625,16 @@ describe('actions.events.notifications', () => {
                         [{
                             id: data.events[0]._id,
                             etag: 'e123',
-                            revert_state: 'draft'
+                            revert_state: 'draft',
                         }],
                         'The Event was unspiked',
-                        'id'
+                        'id',
                     ]);
 
                     expect(main.setUnsetLoadingIndicator.callCount).toBe(2);
                     expect(main.setUnsetLoadingIndicator.args).toEqual([
                         [true],
-                        [false]
+                        [false],
                     ]);
 
                     expect(eventsUi.scheduleRefetch.callCount).toBe(1);

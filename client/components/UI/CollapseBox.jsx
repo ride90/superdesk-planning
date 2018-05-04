@@ -5,34 +5,71 @@ import classNames from 'classnames';
 import {KEYCODES} from '../../constants';
 import {onEventCapture} from '../../utils';
 
+import {IconButton} from './';
+
 export class CollapseBox extends React.Component {
     constructor(props) {
         super(props);
         this.state = {isOpen: this.props.isOpen};
         this.scrollInView = this.scrollInView.bind(this);
-        this.toggleOpenState = this.toggleOpenState.bind(this);
+        this.handleOpenClick = this.handleOpenClick.bind(this);
+        this.openBox = this.openBox.bind(this);
+        this.closeBox = this.closeBox.bind(this);
         this.handleKeyDown = this.handleKeyDown.bind(this);
         this.dom = {node: null};
+    }
+
+    componentWillReceiveProps(nextProps) {
+        if (this.props.onOpen) {
+            this.setState({isOpen: nextProps.isOpen});
+        }
     }
 
     handleKeyDown(event) {
         if (event.keyCode === KEYCODES.ENTER) {
             onEventCapture(event);
-            this.toggleOpenState();
-
             // If we closed it by keydown, keep focus to show the tab route
             if (this.state.isOpen) {
+                this.closeBox();
                 this.dom.node.focus();
+            } else {
+                this.openBox();
             }
         }
     }
 
-    toggleOpenState() {
-        this.setState({isOpen: !this.state.isOpen});
+    openBox() {
+        if (this.props.noOpen || this.state.isOpen) {
+            return;
+        }
+
+        this.setState({isOpen: true});
+        if (this.props.onOpen) {
+            this.props.onOpen();
+        }
+    }
+
+    closeBox() {
+        if (this.state.isOpen) {
+            this.setState({isOpen: false});
+            if (this.props.onClose) {
+                this.props.onClose();
+            }
+        }
+    }
+
+    handleOpenClick() {
+        if (this.props.onClick) {
+            this.props.onClick();
+        }
+
+        this.openBox();
     }
 
     scrollInView() {
-        if (this.props.scrollInView && this.state.isOpen && this.dom.node) {
+        if (this.props.scrollInView &&
+            (this.state.isOpen || this.props.noOpen) &&
+            this.dom.node) {
             this.dom.node.scrollIntoView();
             // When just opened, lose focus to remove greyed background due to
             // initial collapsed view
@@ -47,7 +84,8 @@ export class CollapseBox extends React.Component {
 
     componentDidUpdate(prevProps, prevState) {
         // Scroll into view only upon first opening
-        if (prevState.isOpen !== this.state.isOpen) {
+        if (prevState.isOpen !== this.state.isOpen ||
+                (this.props.forceScroll && this.props.forceScroll !== prevProps.forceScroll)) {
             this.scrollInView();
         }
     }
@@ -63,23 +101,23 @@ export class CollapseBox extends React.Component {
                     'sd-shadow--z2',
                     {
                         'sd-collapse-box--open': this.state.isOpen,
-                        'sd-collapse-box--invalid': this.props.invalid
+                        'sd-collapse-box--invalid': this.props.invalid,
                     }
                 )}
                 ref={(node) => this.dom.node = node}
-                onClick={this.state.isOpen ? null : this.toggleOpenState}
+                onClick={this.handleOpenClick}
             >
                 {this.state.isOpen && (
                     <div className="sd-collapse-box__content-wraper">
                         <div className="sd-collapse-box__content">
                             <div className="sd-collapse-box__tools">
                                 {this.props.tools}
-                                <a tabIndex={this.props.tabEnabled ? 0 : null}
-                                    className="icn-btn"
-                                    onClick={this.toggleOpenState}
-                                    onKeyDown={this.props.tabEnabled ? this.handleKeyDown : null} >
-                                    <i className="icon-chevron-up-thin" />
-                                </a>
+                                <IconButton
+                                    icon="icon-chevron-up-thin"
+                                    tabIndex={this.props.tabEnabled ? 0 : null}
+                                    onClick={this.closeBox}
+                                    onKeyDown={this.props.tabEnabled ? this.handleKeyDown : null}
+                                />
                             </div>
                             {this.props.openItemTopBar &&
                             <div className="sd-collapse-box__content-block sd-collapse-box__content-block--top">
@@ -107,6 +145,11 @@ CollapseBox.propTypes = {
     scrollInView: PropTypes.bool,
     invalid: PropTypes.bool,
     tabEnabled: PropTypes.bool,
+    noOpen: PropTypes.bool,
+    onOpen: PropTypes.func,
+    onClose: PropTypes.func,
+    forceScroll: PropTypes.bool,
+    onClick: PropTypes.func,
 };
 
 CollapseBox.defaultProps = {

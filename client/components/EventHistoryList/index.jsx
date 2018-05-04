@@ -22,7 +22,7 @@ export class EventHistoryList extends React.Component {
                                 this.props.users &&
                                 includes(['create', 'update', 'spiked', 'unspiked',
                                     'planning created', 'duplicate', 'duplicate_from',
-                                    'publish', 'unpublish', 'cancel', 'reschedule',
+                                    'post', 'unpost', 'cancel', 'reschedule',
                                     'reschedule_from', 'postpone', 'ingested'], historyItem.operation)
                                 &&
                                 <div>
@@ -34,8 +34,8 @@ export class EventHistoryList extends React.Component {
                                         {historyItem.operation === 'planning created' && 'Planning item created by '}
                                         {historyItem.operation === 'duplicate_from' && 'Duplicate created by '}
                                         {historyItem.operation === 'duplicate' && 'Duplicated by '}
-                                        {historyItem.operation === 'publish' && 'Published by '}
-                                        {historyItem.operation === 'unpublish' && 'Un-published by '}
+                                        {historyItem.operation === 'post' && 'Posted by '}
+                                        {historyItem.operation === 'unpost' && 'Un-posted by '}
                                         {historyItem.operation === 'cancel' && 'Cancelled by '}
                                         {historyItem.operation === 'reschedule' && 'Rescheduled by '}
                                         {historyItem.operation === 'reschedule_from' && 'Rescheduled by '}
@@ -56,7 +56,7 @@ export class EventHistoryList extends React.Component {
                                             </div>
                                         }
                                         {historyItem.operation === 'planning created' && (
-                                            <div className="history-list__link">
+                                            <div className="link">
                                                 <a onClick={this.props.openPlanningClick.bind(
                                                     null, historyItem.update.planning_id)}>
                                                     View planning item
@@ -64,7 +64,7 @@ export class EventHistoryList extends React.Component {
                                             </div>)
                                         }
                                         {historyItem.operation === 'duplicate' && (
-                                            <div className="history-list__link">
+                                            <div className="link">
                                                 <a onClick={this.closeAndOpenDuplicate.bind(this,
                                                     historyItem.update.duplicate_id)}>
                                                     View duplicate event
@@ -72,7 +72,7 @@ export class EventHistoryList extends React.Component {
                                             </div>
                                         )}
                                         {historyItem.operation === 'duplicate_from' && (
-                                            <div className="history-list__link">
+                                            <div className="link">
                                                 <a onClick={this.closeAndOpenDuplicate.bind(this,
                                                     historyItem.update.duplicate_from)}>
                                                     View original event
@@ -82,7 +82,7 @@ export class EventHistoryList extends React.Component {
 
                                         {historyItem.operation === 'reschedule' &&
                                         get(historyItem, 'update.reschedule_to') &&
-                                            <div className="history-list__link">
+                                            <div className="link">
                                                 <a onClick={this.closeAndOpenDuplicate.bind(this,
                                                     historyItem.update.reschedule_to)}>
                                                     View rescheduled event
@@ -92,7 +92,7 @@ export class EventHistoryList extends React.Component {
 
                                         {historyItem.operation === 'reschedule_from' &&
                                         get(historyItem, 'update.reschedule_from') &&
-                                            <div className="history-list__link">
+                                            <div className="link">
                                                 <a onClick={this.closeAndOpenDuplicate.bind(this,
                                                     historyItem.update.reschedule_from)}>
                                                     View original event

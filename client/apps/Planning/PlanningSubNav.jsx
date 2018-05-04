@@ -8,6 +8,7 @@ import * as selectors from '../../selectors';
 import {ITEM_TYPE, TEMP_ID_PREFIX} from '../../constants';
 
 import {SubNavBar, FiltersBar} from '../../components/Main';
+import {ArchiveItem} from '../../components/Archive';
 
 export const PlanningSubNavComponent = ({
     filtersOpen,
@@ -24,9 +25,20 @@ export const PlanningSubNavComponent = ({
     selectAgenda,
     currentAgendaId,
     isViewFiltered,
-    clearSearch
+    clearSearch,
+    withArchiveItem,
+    archiveItem,
+    showFilters,
+    createPlanningOnly,
+    enabledCalendars,
+    disabledCalendars,
+    selectCalendar,
+    currentCalendarId,
+    currentStartFilter,
+    setStartFilter,
 }) => (
     <div>
+        {withArchiveItem && <ArchiveItem item={archiveItem} />}
         <SubNavBar
             addEvent={addEvent}
             addPlanning={addPlanning}
@@ -34,8 +46,11 @@ export const PlanningSubNavComponent = ({
             value={fullText}
             search={search}
             activeFilter={activeFilter}
-            createPlanningOnly={false}
-            disableAgendaManagement={false}
+            isViewFiltered={isViewFiltered}
+            clearSearch={clearSearch}
+            createPlanningOnly={createPlanningOnly}
+            currentStartFilter={currentStartFilter}
+            setStartFilter={setStartFilter}
         />
         <FiltersBar
             filterPanelOpen={filtersOpen}
@@ -46,9 +61,11 @@ export const PlanningSubNavComponent = ({
             disabledAgendas={disabledAgendas}
             selectAgenda={selectAgenda}
             currentAgendaId={currentAgendaId}
-            showFilters={true}
-            isViewFiltered={isViewFiltered}
-            clearSearch={clearSearch}
+            showFilters={showFilters}
+            enabledCalendars={enabledCalendars}
+            disabledCalendars={disabledCalendars}
+            selectCalendar={selectCalendar}
+            currentCalendarId={currentCalendarId}
         />
     </div>
 );
@@ -69,7 +86,19 @@ PlanningSubNavComponent.propTypes = {
     currentAgendaId: PropTypes.string.isRequired,
     isViewFiltered: PropTypes.bool,
     clearSearch: PropTypes.func,
+    withArchiveItem: PropTypes.bool,
+    showFilters: PropTypes.bool,
+    createPlanningOnly: PropTypes.bool,
+    archiveItem: PropTypes.object,
+    enabledCalendars: PropTypes.array,
+    disabledCalendars: PropTypes.array,
+    selectCalendar: PropTypes.func,
+    currentCalendarId: PropTypes.string,
+    currentStartFilter: PropTypes.object,
+    setStartFilter: PropTypes.func,
 };
+
+PlanningSubNavComponent.defaultProps = {showFilters: true};
 
 const mapStateToProps = (state) => ({
     fullText: selectors.main.fullText(state),
@@ -78,6 +107,10 @@ const mapStateToProps = (state) => ({
     disabledAgendas: selectors.getDisabledAgendas(state),
     currentAgendaId: selectors.getCurrentAgendaId(state),
     isViewFiltered: selectors.main.isViewFiltered(state),
+    enabledCalendars: selectors.events.enabledCalendars(state),
+    disabledCalendars: selectors.events.disabledCalendars(state),
+    currentCalendarId: selectors.events.currentCalendarId(state),
+    currentStartFilter: selectors.main.currentStartFilter(state),
 });
 
 const mapDispatchToProps = (dispatch) => ({
@@ -88,12 +121,14 @@ const mapDispatchToProps = (dispatch) => ({
     clearSearch: () => dispatch(actions.main.clearSearch()),
     addEvent: () => dispatch(actions.main.lockAndEdit({
         _tempId: TEMP_ID_PREFIX + moment().valueOf(),
-        type: ITEM_TYPE.EVENT
+        type: ITEM_TYPE.EVENT,
     })),
     addPlanning: () => dispatch(actions.main.lockAndEdit({
         _tempId: TEMP_ID_PREFIX + moment().valueOf(),
-        type: ITEM_TYPE.PLANNING
-    }))
+        type: ITEM_TYPE.PLANNING,
+    })),
+    selectCalendar: (calendarId) => dispatch(actions.events.ui.selectCalendar(calendarId)),
+    setStartFilter: (start) => dispatch(actions.main.setStartFilter(start)),
 });
 
 export const PlanningSubNav = connect(mapStateToProps, mapDispatchToProps)(PlanningSubNavComponent);

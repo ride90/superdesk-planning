@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import {connect} from 'react-redux';
 import {set, cloneDeep, isEqual} from 'lodash';
-import {gettext} from '../../utils';
+import {gettext, getWorkFlowStateAsOptions} from '../../utils';
 import {Button} from '../UI';
 import {Content, Footer, Header, SidePanel, Tools} from '../UI/SidePanel';
 import {AdvancedSearch} from '../AdvancedSearch';
@@ -24,7 +24,7 @@ export class SearchPanelComponent extends React.Component {
         }
 
         this.setState({
-            diff: {}
+            diff: {},
         });
         this.props.clearSearch();
     }
@@ -34,7 +34,7 @@ export class SearchPanelComponent extends React.Component {
             (nextProps.activeFilter === this.props.activeFilter &&
             !isEqual(nextProps.currentSearch, this.props.currentSearch))) {
             this.setState({
-                diff: cloneDeep(nextProps.currentSearch) || {}
+                diff: cloneDeep(nextProps.currentSearch) || {},
             });
         }
     }
@@ -56,7 +56,6 @@ export class SearchPanelComponent extends React.Component {
             activeFilter,
             subjects,
             categories,
-            calendars,
             ingestProviders,
             contentTypes,
             urgencies,
@@ -65,11 +64,12 @@ export class SearchPanelComponent extends React.Component {
             currentSearch,
             toggleFilterPanel,
             search,
-            isViewFiltered
+            isViewFiltered,
+            workflowStateOptions,
         } = this.props;
 
         const {
-            diff
+            diff,
         } = this.state;
 
         const tools = [
@@ -83,7 +83,6 @@ export class SearchPanelComponent extends React.Component {
             activeFilter: activeFilter,
             subjects: subjects,
             categories: categories,
-            calendars: calendars,
             ingestProviders: ingestProviders,
             contentTypes: contentTypes,
             urgencies: urgencies,
@@ -91,7 +90,8 @@ export class SearchPanelComponent extends React.Component {
             timeFormat: timeFormat,
             diff: diff,
             currentSearch: currentSearch,
-            onChange: this.onChangeHandler
+            onChange: this.onChangeHandler,
+            workflowStateOptions: workflowStateOptions || getWorkFlowStateAsOptions(activeFilter),
         };
 
         return (
@@ -127,7 +127,6 @@ SearchPanelComponent.propTypes = {
     activeFilter: PropTypes.string,
     toggleFilterPanel: PropTypes.func,
     currentSearch: PropTypes.object,
-    calendars: PropTypes.array,
     categories: PropTypes.array,
     subjects: PropTypes.array,
     urgencies: PropTypes.array,
@@ -137,14 +136,14 @@ SearchPanelComponent.propTypes = {
     timeFormat: PropTypes.string.isRequired,
     search: PropTypes.func,
     clearSearch: PropTypes.func,
-    isViewFiltered: PropTypes.bool
+    isViewFiltered: PropTypes.bool,
+    workflowStateOptions: PropTypes.array,
 };
 
 
 const mapStateToProps = (state) => ({
     activeFilter: selectors.main.activeFilter(state),
     currentSearch: selectors.main.currentSearch(state),
-    calendars: selectors.getEventCalendars(state),
     categories: state.vocabularies.categories,
     subjects: state.subjects,
     urgencies: state.urgency.urgency,
@@ -152,12 +151,12 @@ const mapStateToProps = (state) => ({
     ingestProviders: state.ingest.providers,
     dateFormat: selectors.config.getDateFormat(state),
     timeFormat: selectors.config.getTimeFormat(state),
-    isViewFiltered: selectors.main.isViewFiltered(state)
+    isViewFiltered: selectors.main.isViewFiltered(state),
 });
 
 const mapDispatchToProps = (dispatch) => ({
     clearSearch: () => dispatch(actions.main.clearSearch()),
-    search: (params) => dispatch(actions.main.search(null, params))
+    search: (params) => dispatch(actions.main.search(null, params)),
 });
 
 export const SearchPanel = connect(mapStateToProps, mapDispatchToProps)(SearchPanelComponent);

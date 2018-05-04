@@ -47,6 +47,7 @@ export class Field extends React.Component {
             enabled,
             showErrors,
             value,
+            onFocus,
             ...props
         } = this.props;
 
@@ -68,14 +69,16 @@ export class Field extends React.Component {
             value={currentValue || defaultValue}
             diff={diff}
             onChange={onChange}
-            maxLength={schema.validate_on_publish ? 0 : schema.maxlength}
-            required={schema.validate_on_publish ? false : schema.required}
+            maxLength={schema.validate_on_post ? 0 : schema.maxlength}
+            required={schema.validate_on_post ? false : schema.required}
             message={currentError}
             invalid={!!currentError}
             errors={errors}
             showErrors={showErrors}
             dirty={this.state.dirty}
             formProfile={formProfile}
+            row={row}
+            onFocus={onFocus}
             {...props}
         />;
 
@@ -99,6 +102,7 @@ Field.propTypes = {
     enabled: PropTypes.bool,
     showErrors: PropTypes.bool,
     value: PropTypes.any,
+    onFocus: PropTypes.func,
 };
 
 Field.defaultProps = {

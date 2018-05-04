@@ -15,6 +15,7 @@ export const SelectInput = ({
     clearable,
     autoFocus,
     refNode,
+    onFocus,
     ...props
 }) => {
     const key = clearable ?
@@ -23,7 +24,7 @@ export const SelectInput = ({
 
     const opts = options.map((opt) => ({
         key: get(opt, keyField),
-        label: get(opt, labelField)
+        label: get(opt, labelField),
     }));
 
     const onChangeHandler = (field, key) => {
@@ -46,6 +47,7 @@ export const SelectInput = ({
                 clearable={clearable}
                 autoFocus={autoFocus}
                 refNode={refNode}
+                onFocus={onFocus}
             />
         </LineInput>
     );
@@ -70,13 +72,14 @@ SelectInput.propTypes = {
             PropTypes.string,
             PropTypes.object,
             PropTypes.number,
-        ])
+        ]),
     })).isRequired,
     keyField: PropTypes.string,
     labelField: PropTypes.string,
     clearable: PropTypes.bool,
     autoFocus: PropTypes.bool,
     refNode: PropTypes.func,
+    onFocus: PropTypes.func,
 };
 
 SelectInput.defaultProps = {

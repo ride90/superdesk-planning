@@ -24,30 +24,31 @@ export class ContactEditor extends React.Component {
 
     handleCancel() {
         this.setState({
-            showModal: false
+            showModal: false,
         }, this.props.onCancel());
     }
 
     onDirty() {
         this.setState({
-            dirty: true
+            dirty: true,
         });
     }
 
     onValidation(validity) {
         this.setState({
-            valid: validity
+            valid: validity,
         });
     }
 
     triggerSave() {
         this.setState({
-            triggerSave: true
+            triggerSave: true,
         });
     }
 
     exitEditor(result) {
-        this.props.onSave(result);
+        // wait before exiting contact editor, allowing save changes to be completed on contact form.
+        setTimeout(() => this.props.onSave(result), 800);
     }
 
     onSave(result) {

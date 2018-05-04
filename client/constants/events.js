@@ -24,8 +24,10 @@ export const EVENTS = {
         MARK_EVENT_HAS_PLANNINGS: 'MARK_EVENT_HAS_PLANNINGS',
         LOCK_EVENT: 'LOCK_EVENT',
         UNLOCK_EVENT: 'UNLOCK_EVENT',
-        MARK_EVENT_PUBLISHED: 'MARK_EVENT_PUBLISHED',
-        MARK_EVENT_UNPUBLISHED: 'MARK_EVENT_UNPUBLISHED',
+        MARK_EVENT_POSTED: 'MARK_EVENT_POSTED',
+        MARK_EVENT_UNPOSTED: 'MARK_EVENT_UNPOSTED',
+        SELECT_CALENDAR: 'SELECT_EVENT_CALENDAR',
+        RECEIVE_CALENDARS: 'RECEIVE_CALENDARS',
     },
     // Number of ids to look for by single request
     // because url length must stay short
@@ -40,7 +42,7 @@ export const EVENTS = {
         UNSPIKE: {
             label: gettext('Unspike'),
             icon: 'icon-unspike',
-            actionName: 'onUnspikeEvent'
+            actionName: 'onUnspikeEvent',
         },
         DUPLICATE: {
             label: gettext('Duplicate'),
@@ -51,6 +53,11 @@ export const EVENTS = {
             label: gettext('Create Planning Item'),
             icon: 'icon-new-doc',
             actionName: 'onCreatePlanning',
+        },
+        CREATE_AND_OPEN_PLANNING: {
+            label: gettext('Create and Open Planning Item'),
+            icon: 'icon-new-doc',
+            actionName: 'onCreateAndOpenPlanning',
         },
         CANCEL_EVENT: {
             label: gettext('Cancel'),
@@ -86,19 +93,30 @@ export const EVENTS = {
             label: gettext('Update Repetitions'),
             icon: 'icon-repeat',
             actionName: 'onUpdateEventRepetitions',
-            lock_action: 'update_repetitions'
+            lock_action: 'update_repetitions',
         },
-        PUBLISH_EVENT: {label: gettext('Publish')},
+        POST_EVENT: {label: gettext('Post')},
         EDIT_EVENT: {
             label: gettext('Edit'),
             icon: 'icon-pencil',
             actionName: 'onEditEvent',
-            lock_action: 'edit'
-        }
+            lock_action: 'edit',
+        },
+        EDIT_EVENT_MODAL: {
+            label: gettext('Edit in popup'),
+            icon: 'icon-external',
+            actionName: 'onEditEventModal',
+            lock_action: 'edit',
+        },
     },
     DEFAULT_VALUE: (occurStatuses) => ({
         type: 'event',
         occur_status: occurStatuses[5], // eocstat:eos5: Planned, occurs certainly
-        dates: {}
-    })
+        dates: {},
+    }),
+    FILTER: {
+        NO_CALENDAR_ASSIGNED: 'NO_CALENDAR_ASSIGNED',
+        ALL_CALENDARS: 'ALL_CALENDARS',
+        DEFAULT: 'ALL_CALENDARS',
+    },
 };

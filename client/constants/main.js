@@ -2,7 +2,9 @@ export const MAIN = {
     ACTIONS: {
         PREVIEW: 'MAIN_PREVIEW',
         OPEN_EDITOR: 'MAIN_OPEN_EDITOR',
+        OPEN_EDITOR_MODAL: 'OPEN_EDITOR_MODAL',
         CLOSE_EDITOR: 'MAIN_CLOSE_EDITOR',
+        CLOSE_EDITOR_MODAL: 'CLOSE_EDITOR_MODAL',
         FILTER: 'MAIN_FILTER',
         HISTORY: 'MAIN_HISTORY',
         CLOSE_PREVIEW: 'MAIN_CLOSE_PREVIEW',
@@ -18,6 +20,11 @@ export const MAIN = {
         SET_EDIT_ITEM: 'MAIN_SET_EDIT_ITEM',
         EDIT_LOADING_START: 'MAIN_EDIT_LOADING_START',
         EDIT_LOADING_COMPLETE: 'MAIN_EDIT_LOADING_COMPLETE',
+        EDIT_LOADING_START_MODAL: 'MAIN_EDIT_LOADING_START_MODAL',
+        EDIT_LOADING_COMPLETE_MODAL: 'MAIN_EDIT_LOADING_COMPLETE_MODAL',
+
+        SET_JUMP_INTERVAL: 'MAIN_SET_JUMP_INTERVAL',
+        JUMP_TO: 'MAIN_JUMP_TO',
     },
     FILTERS: {
         COMBINED: 'COMBINED',
@@ -26,5 +33,20 @@ export const MAIN = {
     },
     PAGE_SIZE: 25,
     PREVIEW: 'preview',
-    EDIT: 'edit'
+    EDIT: 'edit',
+    JUMP: {
+        FORWARD: 'FORWARD',
+        BACK: 'BACK',
+        TODAY: 'TODAY',
+        DAY: 'DAY',
+        WEEK: 'WEEK',
+        MONTH: 'MONTH',
+    },
+    DATE_RANGE: {
+        TODAY: 'today',
+        TOMORROW: 'tomorrow',
+        THIS_WEEK: 'this_week',
+        NEXT_WEEK: 'next_week',
+        LAST_24: 'last24',
+    },
 };

@@ -1,11 +1,12 @@
 import {showModal, locks, main} from '../index';
-import {PRIVILEGES, EVENTS, MODALS, SPIKED_STATE, MAIN, ITEM_TYPE} from '../../constants';
+import {PRIVILEGES, EVENTS, MODALS, SPIKED_STATE, MAIN, ITEM_TYPE, TEMP_ID_PREFIX} from '../../constants';
 import eventsApi from './api';
 import planningApi from '../planning/api';
 import * as selectors from '../../selectors';
 import {get} from 'lodash';
 import moment from 'moment-timezone';
 import {
+    eventUtils,
     checkPermission,
     getErrorMessage,
     lockUtils,
@@ -14,6 +15,7 @@ import {
     dispatchUtils,
     gettext,
     getItemInArrayById,
+    isExistingItem,
 } from '../../utils';
 
 /**
@@ -28,9 +30,13 @@ const fetchEvents = (params = {
     page: 1,
 }) => (
     (dispatch, getState, {$timeout, $location}) => {
-        dispatch(self.requestEvents(params));
+        const filters = {
+            ...selectors.events.getEventFilterParams(getState()),
+            ...params,
+        };
 
-        return dispatch(eventsApi.query(params, true))
+        dispatch(self.requestEvents(filters));
+        return dispatch(eventsApi.query(filters, true))
             .then((items) => {
                 dispatch(eventsApi.receiveEvents(items));
                 dispatch(self.setEventsList(items.map((e) => e._id)));
@@ -252,7 +258,7 @@ const refetch = () => (
  * Schedule the refetch to run after one second and avoid any other refetch
  */
 let nextRefetch = {
-    called: 0
+    called: 0,
 };
 const scheduleRefetch = () => (
     (dispatch) => (
@@ -292,78 +298,78 @@ const postponeEvent = (event) => (
     )
 );
 
-const updateTime = (event, publish = false) => (
+const updateTime = (event, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.UPDATE_TIME.label,
         EVENTS.ITEM_ACTIONS.UPDATE_TIME.lock_action,
         false,
-        publish
+        post
     ))
 );
 
-const openSpikeModal = (event, publish = false) => (
+const openSpikeModal = (event, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.SPIKE.label,
         null,
         true,
-        publish
+        post
     ))
 );
 
-const openUnspikeModal = (event, publish = false) => (
+const openUnspikeModal = (event, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.UNSPIKE.label,
         null,
         true,
-        publish
+        post
     ))
 );
 
-const openCancelModal = (event, publish = false) => (
+const openCancelModal = (event, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.CANCEL_EVENT.label,
         EVENTS.ITEM_ACTIONS.CANCEL_EVENT.lock_action,
         true,
-        publish,
+        post,
         true
     ))
 );
 
-const openPostponeModal = (event, publish = false) => (
+const openPostponeModal = (event, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.label,
         EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.lock_action,
         true,
-        publish,
+        post,
         false,
         false
     ))
 );
 
-const openRescheduleModal = (event, publish = false) => (
+const openRescheduleModal = (event, post = false) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT.label,
         EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT.lock_action,
         true,
-        publish,
+        post,
         true,
         false
     ))
 );
 
-const convertToRecurringEvent = (event, publish) => (
+const convertToRecurringEvent = (event, post) => (
     (dispatch) => dispatch(self._openActionModal(
         event,
         EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.label,
         EVENTS.ITEM_ACTIONS.CONVERT_TO_RECURRING.lock_action,
         false,
-        publish,
+        post,
         true
     ))
 );
@@ -381,14 +387,14 @@ const _openActionModal = (
     action,
     lockAction = null,
     loadPlannings = false,
-    publish = false,
+    post = false,
     large = false,
     loadEvents = true
 ) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.lock(event, lockAction))
             .then((lockedEvent) => (
-                dispatch(eventsApi.loadEventDataForAction(lockedEvent, loadPlannings, publish, loadEvents))
+                dispatch(eventsApi.loadEventDataForAction(lockedEvent, loadPlannings, post, loadEvents))
                     .then((eventDetail) => (
                         dispatch(showModal({
                             modalType: MODALS.ITEM_ACTIONS_MODAL,
@@ -449,19 +455,17 @@ const rescheduleEvent = (event) => (
 );
 
 const duplicate = (event) => (
-    (dispatch, getState, {notify}) => (
-        dispatch(eventsApi.duplicate(event))
-            .then((newEvent) => {
-                notify.success(gettext('Event duplicated'));
-                return dispatch(main.lockAndEdit(newEvent));
-            }, (error) => {
-                notify.error(
-                    getErrorMessage(error, 'Failed to duplicate the Event.')
-                );
+    (dispatch, getState) => {
+        const occurStatuses = selectors.vocabs.eventOccurStatuses(getState());
+        const plannedStatus = getItemInArrayById(occurStatuses, 'eocstat:eos5', 'qcode') || {
+            label: 'Planned, occurs certainly',
+            qcode: 'eocstat:eos5',
+            name: 'Planned, occurs certainly',
+        };
+        const newEvent = eventUtils.duplicateEvent(event, plannedStatus);
 
-                return Promise.reject(error);
-            })
-    )
+        return dispatch(main.lockAndEdit(newEvent));
+    }
 );
 
 const updateEventTime = (event) => (
@@ -505,7 +509,7 @@ const saveWithConfirmation = (event) => (
         const originalEvent = get(events, event._id, {});
         const maxRecurringEvents = selectors.config.getMaxRecurrentEvents(getState());
 
-        // If this is not from a recurring series, then simply publish this event
+        // If this is not from a recurring series, then simply post this event
         if (!get(originalEvent, 'recurrence_id')) {
             return dispatch(eventsApi.save(event));
         }
@@ -513,7 +517,7 @@ const saveWithConfirmation = (event) => (
         return dispatch(eventsApi.query({
             recurrenceId: originalEvent.recurrence_id,
             maxResults: maxRecurringEvents,
-            onlyFuture: false
+            onlyFuture: false,
         }))
             .then((relatedEvents) => (
                 dispatch(showModal({
@@ -532,24 +536,24 @@ const saveWithConfirmation = (event) => (
     }
 );
 
-const publishWithConfirmation = (event, publish) => (
+const postWithConfirmation = (event, post) => (
     (dispatch, getState) => {
         const events = selectors.getEvents(getState());
         const originalEvent = get(events, event._id, {});
         const maxRecurringEvents = selectors.config.getMaxRecurrentEvents(getState());
 
-        // If this is not from a recurring series, then simply publish this event
+        // If this is not from a recurring series, then simply post this event
         if (!get(originalEvent, 'recurrence_id')) {
-            return dispatch(publish ?
-                eventsApi.publish(event) :
-                eventsApi.unpublish(event)
+            return dispatch(post ?
+                eventsApi.post(event) :
+                eventsApi.unpost(event)
             );
         }
 
         return dispatch(eventsApi.query({
             recurrenceId: originalEvent.recurrence_id,
             maxResults: maxRecurringEvents,
-            onlyFuture: false
+            onlyFuture: false,
         }))
             .then((relatedEvents) => (
                 dispatch(showModal({
@@ -560,10 +564,10 @@ const publishWithConfirmation = (event, publish) => (
                             _recurring: relatedEvents || [event],
                             _events: [],
                             _originalEvent: originalEvent,
-                            _publish: publish,
+                            _post: post,
                         },
-                        actionType: EVENTS.ITEM_ACTIONS.PUBLISH_EVENT.label,
-                    }
+                        actionType: EVENTS.ITEM_ACTIONS.POST_EVENT.label,
+                    },
                 }))
             ));
     }
@@ -688,7 +692,7 @@ const createEventFromPlanning = (plan) => (
         const unplannedStatus = getItemInArrayById(occurStatuses, 'eocstat:eos0', 'qcode') || {
             label: 'Unplanned event',
             qcode: 'eocstat:eos0',
-            name: 'Unplanned event'
+            name: 'Unplanned event',
         };
 
         return dispatch(planningApi.lock(plan, 'add_as_event'))
@@ -700,10 +704,10 @@ const createEventFromPlanning = (plan) => (
                         end: moment(plan.planning_date)
                             .clone()
                             .add(defaultDurationOnChange, 'h'),
-                        tz: moment.tz.guess()
+                        tz: moment.tz.guess(),
                     },
                     slugline: plan.slugline,
-                    name: plan.slugline,
+                    name: plan.name || plan.slugline,
                     subject: plan.subject,
                     anpa_category: plan.anpa_category,
                     definition_short: plan.description_text,
@@ -711,9 +715,44 @@ const createEventFromPlanning = (plan) => (
                     internal_note: plan.internal_note,
                     place: plan.place,
                     occur_status: unplannedStatus,
-                    _planning_item: plan._id
+                    _planning_item: plan._id,
+                    _tempId: TEMP_ID_PREFIX + moment().valueOf(),
+
                 }))
             );
+    }
+);
+
+/**
+ * Action to select a specific Calendar and fetch the Events that satisfy the filter params as well.
+ * @param {string} calendarId - The Calendar ID to select, defaults to 'All Calendars'
+ * @param {object} params - The filter parameters
+ */
+const selectCalendar = (calendarId = '', params = {}) => (
+    (dispatch, getState, {$timeout, $location}) => {
+        const defaultCalendar = selectors.events.defaultCalendarFilter(getState());
+        const calendar = calendarId || get(defaultCalendar, 'qcode') || EVENTS.FILTER.DEFAULT;
+
+        dispatch({
+            type: EVENTS.ACTIONS.SELECT_CALENDAR,
+            payload: calendar,
+        });
+
+        // Update the url
+        $timeout(() => $location.search('calendar', calendar));
+
+        // Reload the Event list
+        return dispatch(self.fetchEvents(params));
+    }
+);
+
+const fetchEventWithFiles = (event) => (
+    (dispatch) => {
+        if (!isExistingItem(event) || get(event, 'files.length', 0) === 0) {
+            return Promise.resolve(event);
+        }
+
+        return dispatch(eventsApi.fetchById(event._id, {force: true}));
     }
 );
 
@@ -758,8 +797,10 @@ const self = {
     duplicate,
     updateRepetitions,
     openRepetitionsModal,
-    publishWithConfirmation,
+    postWithConfirmation,
     createEventFromPlanning,
+    selectCalendar,
+    fetchEventWithFiles,
 };
 
 export default self;

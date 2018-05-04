@@ -17,8 +17,8 @@ export const privileges = {
     planning_event_management: 1,
     planning_event_spike: 1,
     planning_event_unspike: 1,
-    planning_event_publish: 1,
-    planning_planning_publish: 1,
+    planning_event_post: 1,
+    planning_planning_post: 1,
     planning_unlock: 1,
 };
 
@@ -208,6 +208,29 @@ export const workspace = {
     currentWorkspace: 'PLANNING',
 };
 
+export const allVocabularies = [
+    {
+        _id: 'event_calendars',
+        items: [
+            {
+                name: 'Sport',
+                qcode: 'sport',
+                is_active: true,
+            },
+            {
+                name: 'Finance',
+                qcode: 'finance',
+                is_active: false,
+            },
+            {
+                name: 'Entertainment',
+                qcode: 'entertainment',
+                is_active: true,
+            },
+        ],
+    },
+];
+
 export const vocabularies = {
     categories: [
         {
@@ -360,8 +383,8 @@ export const vocabularies = {
         {qcode: 'Health', name: 'Health'},
         {qcode: 'Motoring', name: 'Motoring'},
         {qcode: 'Soccer', name: 'Soccer'},
-        {qcode: 'Property', name: 'Property'}
-    ]
+        {qcode: 'Property', name: 'Property'},
+    ],
 };
 
 export const subjects = [
@@ -497,7 +520,7 @@ export const planningInitialState = {
 
 export const eventsPlanningInitialState = {
     eventsAndPlanningInList: [],
-    relatedPlannings: {}
+    relatedPlannings: {},
 };
 
 export const templates = {templates: []};
@@ -764,8 +787,8 @@ export const archive = [
         _id: 'item1',
         slugline: 'test slugline',
         headline: 'test headline',
-        urgency: 2
-    }
+        urgency: 2,
+    },
 ];
 
 export const main = {
@@ -777,19 +800,19 @@ export const main = {
         EVENTS: {
             lastRequestParams: {page: 1},
             fulltext: undefined,
-            currentSearch: undefined
+            currentSearch: undefined,
         },
         PLANNING: {
             lastRequestParams: {page: 1},
             fulltext: undefined,
-            currentSearch: undefined
+            currentSearch: undefined,
         },
         COMBINED: {
             lastRequestParams: {page: 1},
             fulltext: undefined,
-            currentSearch: undefined
-        }
-    }
+            currentSearch: undefined,
+        },
+    },
 };
 
 export const multiSelect = {

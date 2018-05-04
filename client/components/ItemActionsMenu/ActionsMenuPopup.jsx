@@ -1,32 +1,52 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import classNames from 'classnames';
+import {get} from 'lodash';
+
 import {GENERIC_ITEM_ACTIONS} from '../../constants';
 import {onEventCapture} from '../../utils';
-import {get} from 'lodash';
-import {closeActionsMenu} from 'superdesk-core/scripts/apps/search/helpers';
 
-export class ActionsMenu extends React.Component {
+import {Popup, Content} from '../UI/Popup';
+
+export class ActionsMenuPopup extends React.PureComponent {
     triggerAction(action, event) {
         this.props.closeMenu(event);
         action.callback();
     }
 
     render() {
-        const {actions} = this.props;
+        const {actions, closeMenu, target, wide} = this.props;
 
         let items = actions.map(this.renderItem.bind(this));
 
-        return (<ul className="dropdown dropdown__menu more-activity-menu open">
-            <li onClick={onEventCapture.bind(this)}>
-                <div className="dropdown__menu-label">Actions<button className="dropdown__menu-close"
-                    onClick={closeActionsMenu}>
-                    <i className="icon-close-small" /></button>
-                </div>
-            </li>
-            <li className="dropdown__menu-divider" />
-            {items}
-        </ul>
+        return (
+            <Popup
+                target={target}
+                close={closeMenu}
+                noPadding={true}
+                className={{
+                    'item-actions-menu__popup': true,
+                    'item-actions-menu__popup--wide': wide,
+                }}
+            >
+                <Content noPadding={true}>
+                    <ul className="dropdown dropdown__menu more-activity-menu open">
+                        <li onClick={onEventCapture.bind(this)}>
+                            <div className="dropdown__menu-label">
+                                Actions
+                                <button
+                                    className="dropdown__menu-close"
+                                    onClick={closeMenu}
+                                >
+                                    <i className="icon-close-small" />
+                                </button>
+                            </div>
+                        </li>
+                        <li className="dropdown__menu-divider" />
+                        {items}
+                    </ul>
+                </Content>
+            </Popup>
         );
     }
 
@@ -35,7 +55,9 @@ export class ActionsMenu extends React.Component {
 
         if (get(action, 'text')) {
             // Header of a menu or submenu
-            return (<div className="dropdown__menu-label">{action.text}</div>);
+            return (
+                <div className="dropdown__menu-label">{action.text}</div>
+            );
         }
 
         if (Array.isArray(action.callback)) {
@@ -72,9 +94,10 @@ export class ActionsMenu extends React.Component {
 
         return (
             <li key={key}>
-                <button className={classNames(
-                    {disabled: get(action, 'inactive', false)},
-                    'ItemActionsMenu__action')} onClick={trigger}>
+                <button
+                    className={classNames({disabled: get(action, 'inactive', false)})}
+                    onClick={trigger}
+                >
                     {action.icon && (<i className={action.icon}/>)}
                     {action.label}
                 </button>
@@ -84,7 +107,11 @@ export class ActionsMenu extends React.Component {
 }
 
 
-ActionsMenu.propTypes = {
+ActionsMenuPopup.propTypes = {
     closeMenu: PropTypes.func.isRequired,
     actions: PropTypes.array.isRequired,
+    target: PropTypes.string.isRequired,
+    wide: PropTypes.bool,
 };
+
+ActionsMenuPopup.defaultProps = {wide: false};

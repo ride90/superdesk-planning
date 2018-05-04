@@ -22,7 +22,7 @@ from apps.archive.common import set_original_creator, get_auth
 from superdesk.users.services import current_user_has_privilege
 from .events_base_service import EventsBaseService
 from planning.common import UPDATE_SINGLE, UPDATE_FUTURE, get_max_recurrent_events, \
-    WORKFLOW_STATE, ITEM_STATE, remove_lock_information, format_address, update_published_item, publish_required
+    WORKFLOW_STATE, ITEM_STATE, remove_lock_information, format_address, update_post_item, post_required
 from dateutil.rrule import rrule, YEARLY, MONTHLY, WEEKLY, DAILY, MO, TU, WE, TH, FR, SA, SU
 from eve.defaults import resolve_default_values
 from eve.methods.common import resolve_document_etag
@@ -163,10 +163,25 @@ class EventsService(superdesk.Service):
         Then send this list off to the clients so they can fetch these events
         """
         notifications_sent = []
+        history_service = get_resource_service('events_history')
 
         for doc in docs:
-            event_type = 'events:created'
             event_id = str(doc.get(config.ID_FIELD))
+            # If we duplicated this event, update the history
+            if doc.get('duplicate_from'):
+
+                parent_id = doc['duplicate_from']
+                parent_event = self.find_one(req=None, _id=parent_id)
+
+                history_service.on_item_updated({'duplicate_id': event_id}, parent_event, 'duplicate')
+                history_service.on_item_updated({'duplicate_id': parent_id}, doc, 'duplicate_from')
+
+                duplicate_ids = parent_event.get('duplicate_to', [])
+                duplicate_ids.append(event_id)
+                self.patch(parent_id, {'duplicate_to': duplicate_ids})
+                app.on_updated_events({'duplicate_to': duplicate_ids}, {'_id': parent_id})
+
+            event_type = 'events:created'
             user_id = str(doc.get('original_creator', ''))
 
             if doc.get('recurrence_id'):
@@ -195,9 +210,6 @@ class EventsService(superdesk.Service):
     def update(self, id, updates, original):
         item = self.backend.update(self.datasource, id, updates, original)
         return item
-
-    def publish(self, resource, id, updates, original):
-        pass
 
     def on_update(self, updates, original):
         """Update single or series of recurring events.
@@ -243,7 +255,7 @@ class EventsService(superdesk.Service):
             )
 
         if not updates.get('duplicate_to'):
-            update_published_item(updates, original)
+            update_post_item(updates, original)
 
     def _update_single_event(self, updates, original):
         """Updates the metadata of a single event.
@@ -252,10 +264,10 @@ class EventsService(superdesk.Service):
         a series of recurring events, otherwise we simply update this event.
         """
 
-        if publish_required(updates, original):
+        if post_required(updates, original):
             merged = deepcopy(original)
             merged.update(updates)
-            get_resource_service('events_publish').validate_item(merged)
+            get_resource_service('events_post').validate_item(merged)
 
         # Determine if we're to convert this single event to a recurring series of events
         if updates.get('dates', {}).get('recurring_rule', None) is not None:
@@ -293,14 +305,14 @@ class EventsService(superdesk.Service):
             historic, past, future = self.get_recurring_timeline(original)
             events = historic + past + future
 
-        events_publish_service = get_resource_service('events_publish')
+        events_post_service = get_resource_service('events_post')
 
-        # First we want to validate that all events can be published
+        # First we want to validate that all events can be posted
         for e in events:
-            if publish_required(updates, e):
+            if post_required(updates, e):
                 merged = deepcopy(e)
                 merged.update(updates)
-                events_publish_service.validate_item(merged)
+                events_post_service.validate_item(merged)
 
         for e in events:
             new_updates = deepcopy(updates)
