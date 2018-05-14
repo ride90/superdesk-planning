@@ -11,14 +11,14 @@ const mapStateToProps = (state) => ({
     itemId: selectors.forms.currentItemId(state),
     itemType: selectors.forms.currentItemType(state),
     initialValues: selectors.forms.initialValues(state),
-    users: selectors.getUsers(state),
+    users: selectors.general.users(state),
     formProfiles: selectors.forms.profiles(state),
     occurStatuses: selectors.vocabs.eventOccurStatuses(state),
     isLoadingItem: selectors.forms.isLoadingItem(state),
-    session: selectors.getSessionDetails(state),
-    privileges: selectors.getPrivileges(state),
+    session: selectors.general.session(state),
+    privileges: selectors.general.privileges(state),
     lockedItems: selectors.locks.getLockedItems(state),
-    newsCoverageStatus: selectors.getNewsCoverageStatus(state),
+    newsCoverageStatus: selectors.general.newsCoverageStatus(state),
 });
 
 const mapStateToPropsModal = (state) => ({
@@ -26,14 +26,14 @@ const mapStateToPropsModal = (state) => ({
     itemId: selectors.forms.currentItemIdModal(state),
     itemType: selectors.forms.currentItemTypeModal(state),
     initialValues: selectors.forms.initialValuesModal(state),
-    users: selectors.getUsers(state),
+    users: selectors.general.users(state),
     formProfiles: selectors.forms.profiles(state),
     occurStatuses: selectors.vocabs.eventOccurStatuses(state),
     isLoadingItem: selectors.forms.isLoadingItemModal(state),
-    session: selectors.getSessionDetails(state),
-    privileges: selectors.getPrivileges(state),
+    session: selectors.general.session(state),
+    privileges: selectors.general.privileges(state),
     lockedItems: selectors.locks.getLockedItems(state),
-    newsCoverageStatus: selectors.getNewsCoverageStatus(state),
+    newsCoverageStatus: selectors.general.newsCoverageStatus(state),
     inModalView: !!selectors.forms.currentItemIdModal(state),
 });
 
@@ -43,10 +43,11 @@ const mapDispatchToProps = (dispatch) => ({
     onLock: (item) => dispatch(actions.locks.lock(item)),
     minimize: () => dispatch(actions.main.closeEditor()),
     cancel: (item) => dispatch(actions.main.unlockAndCancel(item)),
-    onSave: (item) => dispatch(actions.main.save(item)),
+    onSave: (item, withConfirmation) => dispatch(actions.main.save(item, withConfirmation)),
     onUnpost: (item) => dispatch(actions.main.unpost(item)),
     onPost: (item) => dispatch(actions.main.post(item)),
-    openCancelModal: (props) => dispatch(actions.main.openConfirmationModal(props)),
+    openCancelModal: (modalProps) => dispatch(actions.main.openIgnoreCancelSaveModal(modalProps)),
+
     onValidate: (type, item, profile, errors, messages) =>
         dispatch(validateItem(type, item, profile, errors, messages)),
     loadItem: (itemId, itemType) => dispatch(actions.main.loadItem(itemId, itemType, 'edit')),
@@ -54,6 +55,9 @@ const mapDispatchToProps = (dispatch) => ({
     removeNewAutosaveItems: () => dispatch(actions.autosave.removeNewItems()),
     closeEditorAndOpenModal: (item) => dispatch(actions.main.closeEditorAndOpenModal(item)),
     notifyValidationErrors: (errors) => dispatch(actions.main.notifyValidationErrors(errors)),
+
+    saveAutosave: (formName, diff) => dispatch(actions.autosave.save(formName, diff)),
+    loadAutosave: (formName, itemId) => dispatch(actions.autosave.load(formName, itemId)),
 });
 
 const mapDispatchToPropsModal = (dispatch) => ({
@@ -61,16 +65,19 @@ const mapDispatchToPropsModal = (dispatch) => ({
     onLock: (item) => dispatch(actions.locks.lock(item)),
     minimize: () => dispatch(actions.main.closeEditor()),
     cancel: (item) => dispatch(actions.main.unlockAndCancel(item, true)),
-    onSave: (item) => dispatch(actions.main.save(item)),
+    onSave: (item, withConfirmation) => dispatch(actions.main.save(item, withConfirmation)),
     onUnpost: (item) => dispatch(actions.main.unpost(item)),
     onPost: (item) => dispatch(actions.main.post(item)),
-    openCancelModal: (props) => dispatch(actions.main.openConfirmationModal(props)),
+    openCancelModal: (modalProps) => dispatch(actions.main.openIgnoreCancelSaveModal(modalProps)),
     onValidate: (type, item, profile, errors, messages) =>
         dispatch(validateItem(type, item, profile, errors, messages)),
     loadItem: (itemId, itemType) => dispatch(actions.main.loadItem(itemId, itemType, 'edit')),
     itemActions: actionUtils.getActionDispatches({dispatch: dispatch}),
     removeNewAutosaveItems: () => dispatch(actions.autosave.removeNewItems()),
     notifyValidationErrors: (errors) => dispatch(actions.main.notifyValidationErrors(errors)),
+
+    saveAutosave: (formName, diff) => dispatch(actions.autosave.save(formName, diff)),
+    loadAutosave: (formName, itemId) => dispatch(actions.autosave.load(formName, itemId)),
 });
 
 export const Editor = connect(mapStateToProps, mapDispatchToProps)(EditorComponent);

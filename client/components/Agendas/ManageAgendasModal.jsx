@@ -99,7 +99,7 @@ export class ManageAgendasComponent extends React.Component {
                     </ColumnBox.Box>
                 </Modal.Body>
                 <Modal.Footer>
-                    <button className="btn btn--primary" type="submit" onClick={handleHide}>{gettext('Ok')}</button>
+                    <button className="btn" type="button" onClick={handleHide}>{gettext('Close')}</button>
                 </Modal.Footer>
             </Modal>
         );
@@ -118,9 +118,9 @@ ManageAgendasComponent.propTypes = {
 
 const mapStateToProps = (state) => (
     {
-        enabledAgendas: selectors.getEnabledAgendas(state),
-        disabledAgendas: selectors.getDisabledAgendas(state),
-        privileges: selectors.getPrivileges(state),
+        enabledAgendas: selectors.general.enabledAgendas(state),
+        disabledAgendas: selectors.general.disabledAgendas(state),
+        privileges: selectors.general.privileges(state),
     }
 );
 

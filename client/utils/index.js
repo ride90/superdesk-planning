@@ -19,13 +19,13 @@ import * as testData from './testData';
 import {gettext, gettextCatalog} from './gettext';
 import {default as lockUtils} from './locks';
 import {default as planningUtils} from './planning';
+import {default as eventUtils} from './events';
 import {default as timeUtils} from './time';
 
 
-export {default as checkPermission} from './checkPermission';
 export {default as dispatchUtils} from './dispatch';
 export {default as registerNotifications} from './notifications';
-export {default as eventUtils} from './events';
+export {eventUtils};
 export {default as uiUtils} from './ui';
 export {default as assignmentUtils} from './assignments';
 export {default as stringUtils} from './strings';
@@ -368,7 +368,7 @@ export const isItemCancelled = (item) => getItemWorkflowState(item) === WORKFLOW
 export const isItemRescheduled = (item) => getItemWorkflowState(item) === WORKFLOW_STATE.RESCHEDULED;
 export const isItemKilled = (item) => getItemWorkflowState(item) === WORKFLOW_STATE.KILLED;
 export const isItemPostponed = (item) => getItemWorkflowState(item) === WORKFLOW_STATE.POSTPONED;
-export const isExistingItem = (item) => !!get(item, '_id');
+export const isExistingItem = (item) => !!get(item, '_id') && !item._id.startsWith('tempId-');
 
 export const getItemActionedStateLabel = (item) => {
     // Currently will cater for 'rescheduled from' scenario.
@@ -480,8 +480,18 @@ export const isItemPublic = (item = {}) =>
 export const isItemSpiked = (item) => item ?
     getItemWorkflowState(item) === WORKFLOW_STATE.SPIKED : false;
 
-export const shouldLockItemForEdit = (item, lockedItems) =>
-    get(item, '_id') && !lockUtils.getLock(item, lockedItems) && !isItemSpiked(item);
+export const isEvent = (item) => getItemType(item) === ITEM_TYPE.EVENT;
+export const isPlanning = (item) => getItemType(item) === ITEM_TYPE.PLANNING;
+
+export const shouldLockItemForEdit = (item, lockedItems, privileges) =>
+    get(item, '_id') &&
+        !lockUtils.getLock(item, lockedItems) &&
+        !isItemSpiked(item) &&
+        (
+            (isEvent(item) && eventUtils.shouldLockEventForEdit(item, privileges)) ||
+            (isPlanning(item) && planningUtils.shouldLockPlanningForEdit(item, privileges))
+        )
+;
 
 export const shouldUnLockItem = (item, session, currentWorkspace) =>
     (currentWorkspace === WORKSPACE.AUTHORING && planningUtils.isLockedForAddToPlanning(item)) ||
@@ -704,6 +714,6 @@ export const appendStatesQueryForAdvancedSearch = (advancedSearch, spikeState, m
     }
 };
 
-export const getUserPreferences = (user, preferenceKey) => get(user, `user_preferences.${preferenceKey}`, null);
-
 export const getEnabledAgendas = (agendas) => (agendas || []).filter((agenda) => get(agenda, 'is_enabled', true));
+
+export const getDisabledAgendas = (agendas) => (agendas || []).filter((agenda) => get(agenda, 'is_enabled') === false);

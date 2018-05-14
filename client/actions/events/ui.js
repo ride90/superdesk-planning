@@ -1,5 +1,5 @@
-import {showModal, locks, main} from '../index';
-import {PRIVILEGES, EVENTS, MODALS, SPIKED_STATE, MAIN, ITEM_TYPE, TEMP_ID_PREFIX} from '../../constants';
+import {showModal, main, locks} from '../index';
+import {EVENTS, MODALS, SPIKED_STATE, MAIN, ITEM_TYPE, TEMP_ID_PREFIX} from '../../constants';
 import eventsApi from './api';
 import planningApi from '../planning/api';
 import * as selectors from '../../selectors';
@@ -7,10 +7,7 @@ import {get} from 'lodash';
 import moment from 'moment-timezone';
 import {
     eventUtils,
-    checkPermission,
     getErrorMessage,
-    lockUtils,
-    isItemSpiked,
     isItemRescheduled,
     dispatchUtils,
     gettext,
@@ -45,151 +42,6 @@ const fetchEvents = (params = {
                 return items;
             });
     }
-);
-
-/**
- * Action to open the Edit Event panel with the supplied Event
- * @param {object} event - The Event ID to edit
- * @return Promise
- */
-const _openEventDetails = (event) => (
-    (dispatch, getState) => {
-        const id = get(event, '_id');
-
-        if (id) {
-            const openDetails = {
-                type: EVENTS.ACTIONS.OPEN_EVENT_DETAILS,
-                payload: id,
-            };
-
-            // Load associated Planning items to ensure the 'Related Planning Items'
-            // Toggle box shows relevant Planning items
-            return dispatch(eventsApi.loadAssociatedPlannings(event))
-                .then(() => {
-                // In sessions with multiple tabs, state values of showEventDetails are different
-                // So, explicitly get the event from the store and see if we hold the lock on it
-                    const eventInState = {...selectors.getEvents(getState())[id]};
-                    const eventLockedInThisSession = lockUtils.isItemLockedInThisSession(
-                        eventInState,
-                        selectors.getSessionDetails(getState())
-                    );
-
-                    if (eventInState && eventLockedInThisSession) {
-                        dispatch(openDetails);
-                        return Promise.resolve(eventInState);
-                    }
-
-                    if (isItemSpiked(eventInState)) {
-                        dispatch(self.previewEvent(event));
-                        return Promise.resolve(eventInState);
-                    }
-
-                    return dispatch(eventsApi.lock(event))
-                        .then((item) => {
-                            dispatch(openDetails);
-                            return Promise.resolve(item);
-                        }, () => {
-                            dispatch(openDetails);
-                            return Promise.resolve(event);
-                        });
-                });
-        } else {
-            dispatch({
-                type: EVENTS.ACTIONS.OPEN_EVENT_DETAILS,
-                payload: true,
-            });
-            return Promise.resolve(event);
-        }
-    }
-);
-
-/**
- * If user has lock, opens event in edit. Otherwise previews it
- * @param {object} event - The Event ID to preview
- * @return Promise
- */
-const previewEvent = (event) => (
-    (dispatch, getState) => {
-        const id = get(event, '_id');
-        const eventInState = {...selectors.getEvents(getState())[id]};
-
-        if (eventInState && lockUtils.isItemLockedInThisSession(eventInState,
-            selectors.getSessionDetails(getState()))) {
-            dispatch({
-                type: EVENTS.ACTIONS.OPEN_EVENT_DETAILS,
-                payload: id,
-            });
-        } else {
-            dispatch(_previewEvent(event));
-        }
-
-        return Promise.resolve();
-    }
-);
-
-/**
- * Action to close the Edit Event panel
- * @return Promise
- */
-const closeEventDetails = () => (
-    (dispatch, getState) => {
-        if (selectors.isEventDetailLockedInThisSession(getState())) {
-            const _event = selectors.getShowEventDetails(getState());
-
-            dispatch(eventsApi.unlock({_id: _event}));
-        }
-
-        dispatch({type: EVENTS.ACTIONS.CLOSE_EVENT_DETAILS});
-        return Promise.resolve();
-    }
-);
-
-/**
- * Action to minimize the Edit Event panel
- * @return object
- */
-const minimizeEventDetails = () => (
-    {type: EVENTS.ACTIONS.CLOSE_EVENT_DETAILS}
-);
-
-/**
- * Unlock a Event and close editor if opened - used when item closed from workqueue
- * @param {object} item - The Event item to unlock
- * @return Promise
- */
-const unlockAndCloseEditor = (item) => (
-    (dispatch, getState, {notify}) => (
-        dispatch(eventsApi.unlock({_id: item._id}))
-            .then(() => {
-                if (selectors.getHighlightedEvent(getState()) === item._id) {
-                    dispatch(self.minimizeEventDetails());
-                }
-
-                return Promise.resolve(item);
-            }, (error) => {
-                notify.error(
-                    getErrorMessage(error, 'Could not unlock the event.')
-                );
-                return Promise.reject(error);
-            })
-    )
-);
-
-/**
- * Action to unlock and open the Edit Event panel with the supplied Event
- * @param {object} event - The Event ID to edit
- * @return Promise
- */
-const _unlockAndOpenEventDetails = (event) => (
-    (dispatch) => (
-        dispatch(locks.unlock(event))
-            .then(() => {
-                // Call openPlanningEditor to obtain a new lock for editing
-                // Recurring events item resolved might not be the item we want to open
-                // So, use original parameter (event) to open
-                dispatch(main.lockAndEdit(event));
-            }, () => (Promise.reject()))
-    )
 );
 
 /**
@@ -286,9 +138,9 @@ const cancelEvent = (event) => (
 const postponeEvent = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.postponeEvent(event))
-            .then(() => {
+            .then((updatedEvent) => {
                 notify.success(gettext('Event has been postponed'));
-                return Promise.resolve();
+                return Promise.resolve(updatedEvent);
             }, (error) => {
                 notify.error(
                     getErrorMessage(error, gettext('Failed to postpone the Event!'))
@@ -296,16 +148,6 @@ const postponeEvent = (event) => (
                 return Promise.reject(error);
             })
     )
-);
-
-const updateTime = (event, post = false) => (
-    (dispatch) => dispatch(self._openActionModal(
-        event,
-        EVENTS.ITEM_ACTIONS.UPDATE_TIME.label,
-        EVENTS.ITEM_ACTIONS.UPDATE_TIME.lock_action,
-        false,
-        post
-    ))
 );
 
 const openSpikeModal = (event, post = false) => (
@@ -328,39 +170,53 @@ const openUnspikeModal = (event, post = false) => (
     ))
 );
 
+const openUpdateTimeModal = (event, post = false) => (
+    self._openActionModalFromEditor({
+        event: event,
+        action: EVENTS.ITEM_ACTIONS.UPDATE_TIME,
+        title: gettext('Save changes before updating the Event\'s time?'),
+        loadPlannings: false,
+        post: post,
+        large: false,
+        loadEvents: true,
+    })
+);
+
 const openCancelModal = (event, post = false) => (
-    (dispatch) => dispatch(self._openActionModal(
-        event,
-        EVENTS.ITEM_ACTIONS.CANCEL_EVENT.label,
-        EVENTS.ITEM_ACTIONS.CANCEL_EVENT.lock_action,
-        true,
-        post,
-        true
-    ))
+    self._openActionModalFromEditor({
+        event: event,
+        action: EVENTS.ITEM_ACTIONS.CANCEL_EVENT,
+        title: gettext('Save changes before cancelling the Event?'),
+        loadPlannings: true,
+        post: post,
+        large: true,
+        loadEvents: true,
+        refetchBeforeFinalLock: true,
+    })
 );
 
 const openPostponeModal = (event, post = false) => (
-    (dispatch) => dispatch(self._openActionModal(
-        event,
-        EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.label,
-        EVENTS.ITEM_ACTIONS.POSTPONE_EVENT.lock_action,
-        true,
-        post,
-        false,
-        false
-    ))
+    self._openActionModalFromEditor({
+        event: event,
+        action: EVENTS.ITEM_ACTIONS.POSTPONE_EVENT,
+        title: gettext('Save changes before postponing the Event?'),
+        loadPlannings: true,
+        post: post,
+        large: false,
+        loadEvents: false,
+    })
 );
 
 const openRescheduleModal = (event, post = false) => (
-    (dispatch) => dispatch(self._openActionModal(
-        event,
-        EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT.label,
-        EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT.lock_action,
-        true,
-        post,
-        true,
-        false
-    ))
+    self._openActionModalFromEditor({
+        event: event,
+        action: EVENTS.ITEM_ACTIONS.RESCHEDULE_EVENT,
+        title: gettext('Save changes before rescheduling the Event?'),
+        loadPlannings: true,
+        post: post,
+        large: true,
+        loadEvents: false,
+    })
 );
 
 const convertToRecurringEvent = (event, post) => (
@@ -380,45 +236,6 @@ const openRepetitionsModal = (event) => (
         EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.label,
         EVENTS.ITEM_ACTIONS.UPDATE_REPETITIONS.lock_action
     ))
-);
-
-const _openActionModal = (
-    event,
-    action,
-    lockAction = null,
-    loadPlannings = false,
-    post = false,
-    large = false,
-    loadEvents = true
-) => (
-    (dispatch, getState, {notify}) => (
-        dispatch(eventsApi.lock(event, lockAction))
-            .then((lockedEvent) => (
-                dispatch(eventsApi.loadEventDataForAction(lockedEvent, loadPlannings, post, loadEvents))
-                    .then((eventDetail) => (
-                        dispatch(showModal({
-                            modalType: MODALS.ITEM_ACTIONS_MODAL,
-                            modalProps: {
-                                eventDetail: eventDetail,
-                                actionType: action,
-                                large: large,
-                            },
-                        }))
-                    ), (error) => {
-                        notify.error(
-                            getErrorMessage(error, 'Failed to load associated Events')
-                        );
-
-                        return Promise.reject(error);
-                    })
-            ), (error) => {
-                notify.error(
-                    getErrorMessage(error, 'Failed to obtain the Event lock')
-                );
-
-                return Promise.reject(error);
-            })
-    )
 );
 
 const rescheduleEvent = (event) => (
@@ -454,6 +271,95 @@ const rescheduleEvent = (event) => (
     )
 );
 
+const _openActionModalFromEditor = ({
+    event,
+    action,
+    title,
+    loadPlannings = false,
+    post = false,
+    large = false,
+    loadEvents = true,
+    refetchBeforeFinalLock = false,
+    modalProps = {},
+} = {}) => (
+    (dispatch) => (
+        dispatch(main.openActionModalFromEditor(
+            event,
+            title,
+            (updatedEvent, previousLock, openInEditor, openInModal) => (
+                dispatch(self._openActionModal(
+                    updatedEvent,
+                    action.label,
+                    action.lock_action,
+                    loadPlannings,
+                    post,
+                    large,
+                    loadEvents,
+                    {
+                        onCloseModal: (savedItem) => {
+                            let promise = refetchBeforeFinalLock ?
+                                dispatch(eventsApi.fetchById(savedItem._id, {force: true})) :
+                                Promise.resolve(savedItem);
+
+                            if (get(previousLock, 'action')) {
+                                promise.then((refetchedEvent) => (
+                                    (openInModal || openInModal) ?
+                                        dispatch(main.lockAndEdit(refetchedEvent, openInModal)) :
+                                        dispatch(locks.lock(refetchedEvent, previousLock.action))
+                                ));
+                            }
+
+                            return promise;
+                        },
+                        ...modalProps,
+                    }
+                ))
+            )
+        ))
+    )
+);
+
+const _openActionModal = (
+    event,
+    action,
+    lockAction = null,
+    loadPlannings = false,
+    post = false,
+    large = false,
+    loadEvents = true,
+    modalProps = {}
+) => (
+    (dispatch, getState, {notify}) => (
+        dispatch(eventsApi.lock(event, lockAction))
+            .then((lockedEvent) => (
+                dispatch(eventsApi.loadEventDataForAction(lockedEvent, loadPlannings, post, loadEvents))
+                    .then((eventDetail) => (
+                        dispatch(showModal({
+                            modalType: MODALS.ITEM_ACTIONS_MODAL,
+                            modalProps: {
+                                eventDetail: eventDetail,
+                                actionType: action,
+                                large: large,
+                                ...modalProps,
+                            },
+                        }))
+                    ), (error) => {
+                        notify.error(
+                            getErrorMessage(error, 'Failed to load associated Events')
+                        );
+
+                        return Promise.reject(error);
+                    })
+            ), (error) => {
+                notify.error(
+                    getErrorMessage(error, 'Failed to obtain the Event lock')
+                );
+
+                return Promise.reject(error);
+            })
+    )
+);
+
 const duplicate = (event) => (
     (dispatch, getState) => {
         const occurStatuses = selectors.vocabs.eventOccurStatuses(getState());
@@ -471,9 +377,9 @@ const duplicate = (event) => (
 const updateEventTime = (event) => (
     (dispatch, getState, {notify}) => (
         dispatch(eventsApi.updateEventTime(event))
-            .then(() => {
+            .then((updatedEvent) => {
                 notify.success(gettext('Event time has been updated'));
-                return Promise.resolve();
+                return Promise.resolve(updatedEvent);
             }, (error) => {
                 notify.error(
                     getErrorMessage(error, gettext('Failed to update the Event time!'))
@@ -498,14 +404,9 @@ const updateRepetitions = (event) => (
     )
 );
 
-const save = (event) => (
-    (dispatch, getState, {notify}) =>
-        dispatch(eventsApi.save(event))
-);
-
 const saveWithConfirmation = (event) => (
     (dispatch, getState) => {
-        const events = selectors.getEvents(getState());
+        const events = selectors.events.storedEvents(getState());
         const originalEvent = get(events, event._id, {});
         const maxRecurringEvents = selectors.config.getMaxRecurrentEvents(getState());
 
@@ -538,7 +439,7 @@ const saveWithConfirmation = (event) => (
 
 const postWithConfirmation = (event, post) => (
     (dispatch, getState) => {
-        const events = selectors.getEvents(getState());
+        const events = selectors.events.storedEvents(getState());
         const originalEvent = get(events, event._id, {});
         const maxRecurringEvents = selectors.config.getMaxRecurrentEvents(getState());
 
@@ -633,45 +534,6 @@ const addToList = (eventsIds) => ({
 });
 
 /**
- * Opens the Event in preview/read-only mode
- * @param {object} event - The Event ID to preview
- * @return Promise
- */
-const _previewEvent = (event) => ({
-    type: EVENTS.ACTIONS.PREVIEW_EVENT,
-    payload: get(event, '_id'),
-});
-
-/**
- * Action to open Event Advanced Search panel
- * @return object
- */
-const openAdvancedSearch = () => (
-    {type: EVENTS.ACTIONS.OPEN_ADVANCED_SEARCH}
-);
-
-/**
- * Action to close the Event Advanced Search panel
- * @return object
- */
-const closeAdvancedSearch = () => (
-    {type: EVENTS.ACTIONS.CLOSE_ADVANCED_SEARCH}
-);
-
-const openEventDetails = checkPermission(
-    _openEventDetails,
-    PRIVILEGES.EVENT_MANAGEMENT,
-    'Unauthorised to edit an event!',
-    previewEvent
-);
-
-const unlockAndOpenEventDetails = checkPermission(
-    _unlockAndOpenEventDetails,
-    PRIVILEGES.PLANNING_UNLOCK,
-    'Unauthorised to edit an event!'
-);
-
-/**
  * Action to receive the history of actions on Event and store them in the store
  * @param {array} eventHistoryItems - An array of Event History items
  * @return object
@@ -759,9 +621,6 @@ const fetchEventWithFiles = (event) => (
 // eslint-disable-next-line consistent-this
 const self = {
     fetchEvents,
-    _openEventDetails,
-    _unlockAndOpenEventDetails,
-    _previewEvent,
     spike,
     unspike,
     refetch,
@@ -770,17 +629,9 @@ const self = {
     clearList,
     openSpikeModal,
     openUnspikeModal,
-    openEventDetails,
-    unlockAndOpenEventDetails,
-    closeEventDetails,
-    previewEvent,
-    openAdvancedSearch,
-    closeAdvancedSearch,
     cancelEvent,
     openCancelModal,
-    updateTime,
-    minimizeEventDetails,
-    unlockAndCloseEditor,
+    openUpdateTimeModal,
     openRescheduleModal,
     rescheduleEvent,
     postponeEvent,
@@ -788,7 +639,6 @@ const self = {
     _openActionModal,
     convertToRecurringEvent,
     saveWithConfirmation,
-    save,
     receiveEventHistory,
     loadMore,
     addToList,
@@ -801,6 +651,7 @@ const self = {
     createEventFromPlanning,
     selectCalendar,
     fetchEventWithFiles,
+    _openActionModalFromEditor,
 };
 
 export default self;

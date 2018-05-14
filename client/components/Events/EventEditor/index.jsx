@@ -323,6 +323,7 @@ export class EventEditorComponent extends React.Component {
                             component={FileInput}
                             field="files"
                             createLink={createUploadLink}
+                            defaultValue={[]}
                             {...fieldProps}
                             onFocus={onFocusFiles}
                         />
@@ -418,8 +419,8 @@ const mapStateToProps = (state) => ({
     categories: selectors.vocabs.categories(state),
     subjects: selectors.vocabs.subjects(state),
     createUploadLink: (f) => selectors.config.getServerUrl(state) + '/upload/' + f.filemeta.media_id + '/raw',
-    iframelyKey: selectors.getIframelyKey(state),
-    users: selectors.getUsers(state),
+    iframelyKey: selectors.config.getIframelyKey(state),
+    users: selectors.general.users(state),
     timeFormat: selectors.config.getTimeFormat(state),
     dateFormat: selectors.config.getDateFormat(state),
     plannings: selectors.events.getRelatedPlannings(state),
